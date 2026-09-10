@@ -1,0 +1,5 @@
+{"ts": "2026-09-09T13:33:16.493911+00:00", "mode": "handshake", "audio_seconds": 0.0, "est_yuan": 0.0}
+{"ts": "2026-09-09T13:33:41.212029+00:00", "mode": "run", "audio_seconds": 6.125, "est_yuan": 0.001701}
+{"ts": "2026-09-09T13:34:37.567795+00:00", "mode": "nonstream", "audio_seconds": 6.125, "est_yuan": 0.001701}
+{"ts": "2026-09-09T13:35:24.433518+00:00", "mode": "cancel", "audio_seconds": 1.0, "est_yuan": 0.000278}
+{"ts": "2026-09-09T13:36:14.102031+00:00", "mode": "cancel-crashed-first-attempt", "audio_seconds": 1.0, "est_yuan": 0.000278, "note": "close(1006) 崩溃前已发送约1s音频，补记账"}

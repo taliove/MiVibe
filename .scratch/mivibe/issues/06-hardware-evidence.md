@@ -2,8 +2,8 @@
 
 Type: task
 Label: wayfinder:task
-Status: open
-Assignee: none
+Status: resolved
+Assignee: taliove (with Codex)
 Parent: ../map.md
 Blocked by: 02
 
@@ -14,3 +14,23 @@ Blocked by: 02
 ## Context
 
 [遥控器接入研究](../research/remote.md) 区分了参考项目声明、协议证据和待真机验证项目。
+
+## Comments
+
+2026-09-09：完成系统和蓝牙只读预检。蓝牙开启，系统设备列表未匹配到小米遥控器名称；需要用户完成物理配对或提供不同的设备名称，再继续采集。[现场记录及步骤](../research/hardware-check.md)。未取得设备能力或音频证据，保持未解决。
+
+本轮进展：设备固件2671，12个按钮成对HID事件经用户两轮按键确认；独立CoreBluetooth诊断成功连接并发现ATVV服务及3个特征，进程正常退出。未采音频，协商/尾音/恢复未完成，本票继续保持claimed。
+
+语音阶段：ATVV1.0协商与16kHz ADPCM音频通知已实测，修复诊断重复MIC_OPEN后捕获251帧并生成3.765秒本地WAV。等待听感验证，持续录音/异常恢复尚未覆盖；详情见现场记录。
+
+## Answer
+
+2026-09-09：用户设备确认为“小米蓝牙语音遥控器”，固件2671、VID 0x2717、PID 0x32B8。独立诊断验证了以下核心合同：
+
+- CoreBluetooth 可连接标准 ATVV 服务；能力协商为 v1.0、16 kHz ADPCM、120 字节帧。固件偶尔返回已知的字段错位报文，必须精确白名单处理，并由后续 `AUDIO_START` 再次确认 codec。
+- BLE 语音与 HID 按键是独立链路。十二个非电源按钮均取得成对按下/松开事件；完整映射见[真机验证记录](../research/hardware-check.md)。
+- 去除重复 `MIC_OPEN` 后，单次录音收到一个 `AUDIO_START`、251 个120字节音频帧和一个 `AUDIO_STOP`，离线生成3.765秒、16 kHz单声道 WAV。用户确认句首和句尾“苹果”完整。
+- 应用多次主动断开后均可在下一次诊断重新连接和协商。蓝牙关闭、休眠、移出范围等压力恢复尚未测试。
+- 松手收口以 `AUDIO_STOP` 为准，不能用稍后到达的 HID 松开事件提前关闭音频。诊断日志和音频只保存在本机 `/tmp`，未上传云端。
+
+电源键、系统原生按键副作用、异常断连和长时间稳定性转入独立压力验证，不阻塞“这支遥控器能否提供可用语音及按键事件”的结论。

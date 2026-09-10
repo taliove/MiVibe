@@ -1,0 +1,121 @@
+# MiVibe 第一版产品与技术规格
+
+> 本规格由决策地图 `.scratch/mivibe/` 的十二张已闭环票据汇总而成，自包含，不要求读者翻票据。
+> 每一项关键结论都有真机或真实服务证据；证据索引见附录。术语以 `CONTEXT.md` 为准。
+> 日期：2026-09-09。验证环境：macOS 26.5.2（Apple Silicon）、小米蓝牙语音遥控器（固件 2671）。
+
+## 1. 产品定义
+
+MiVibe 是独立 macOS 原生应用：按住小米遥控器语音键说话，松开后经豆包语音 API 转写，文字直接写入当前应用的输入框。另提供面向编程助手（第一版目标 Codex）的按键预设。
+
+- 通用模式：松手后直接输入，不预览、不确认、**不自动发送**。
+- 编程预设：确认键触发"发送"；普通按键映射可自定义；语音键始终保留按住说话。
+- 第一版只服务用户本人日常使用的这一台 Mac。
+
+**明确不做**：iOS/iPadOS 客户端；其他遥控器型号；调用豆包客户端；离线转写引擎；为其他编程助手做专用集成；长期录音历史。
+
+## 2. 硬件链路（真机已验证）
+
+设备：小米蓝牙语音遥控器，VID `0x2717` / PID `0x32B8`，BLE，固件 2671。
+
+**语音通道（BLE GATT，ATVV 1.0）**：
+
+- 服务 `AB5E0001-5A21-4F05-BC7D-AF01F617B664`；特征：`AB5E0002`（写入）、`AB5E0003`（音频 notify）、`AB5E0004`（控制 notify）。
+- 协商：`GET_CAPS(0A 01 00 00 03 03)`；固件 2671 首连可能返回非标准布局（白名单 `0B 01 00 00 03 00 78 00 00`），须以 `AUDIO_START` 的 codec 字段二次确认（codec=2）。
+- 音频：16 kHz IMA ADPCM，120 字节/帧；本地解码为 pcm_s16le 单声道（参考实现：`diagnostics/decode-capture.py`）。
+- **物理门控**：音频仅在语音键被物理按住时流出；程序 MIC_OPEN（`0C 00`）可开启会话但无音频帧。录音会话以设备自发 `AUDIO_START(04 03 02 xx)` 开始，以 `AUDIO_STOP(00 02)` 收口——松手后的尾帧在 STOP 之前到达，实现必须以 STOP 为结束边界，不得以 HID 松开截断。
+- 已知观察：HID 按住时长与 PCM 时长存在约 0.3s 差异（原因未确认，不影响以 STOP 收口的正确性）。
+
+**按键通道（HID，usage page 0x07）**：上 `0x52`、下 `0x51`、左 `0x50`、右 `0x4F`、确认 `0x28`、返回 `0xF1`、音量+ `0x80`、音量− `0x81`、主页 `0x4A`、菜单 `0x65`、TV `0x35`、语音 `0x3E`、电源 `0x66`。忽略 `usage=0xFFFFFFFF` 占位元素。这些是标准系统级 HID 键盘事件，天然到达前台应用。
+
+## 3. 安全与恢复策略（真机已验证）
+
+- **不接管电源键**：电源键发送 HID Power(0x66)，本机系统无响应（实测 4 次按下零系统事件）；应用不接管、不依赖，不做任何系统按键映射变更。
+- **进程异常退出**：kill -9 后立即重连即可完整恢复（实测 166ms 就绪），**无需重连退避**。
+- **断连恢复**：蓝牙关闭/休眠/移出范围按用户日常经验视为可恢复（用户裁决，未专项实测）；失败场景统一走"手动重试"兜底。
+- **启动前检查**：CoreBluetooth 状态 poweredOn + 设备可连接；不满足时走配对引导（§6）。
+- 快速连续录音实测 5/5 成功（按键驱动，会话 1-2.6s，固件无卡死）。
+
+## 4. 语音识别接入合同（真实服务已验证）
+
+- 端点：`wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async`（标准 WebSocket 握手；文档页面"POST"标签是文档错误）。
+- 认证头（当前版）：`X-Api-Key` + `X-Api-Resource-Id` + `X-Api-Request-Id`(UUID)。资源用 **2.0 小时版 `volc.seedasr.sauc.duration`**。
+- 音频参数：`format=pcm, codec=raw, rate=16000, bits=16, channel=1`；每 200ms 一包（6400 字节），gzip 压缩。**不得把蓝牙 ADPCM 原始数据直接上传。**
+- 请求：`model_name=bigmodel`，`result_type=full`，`show_utterances=true`，`enable_itn/enable_punc/enable_ddc=true`，**`enable_nonstream=true`（二遍识别默认开，设置里可关）**。
+- 二进制帧：4 字节头（版本|头长、类型|flags、序列化|压缩、保留）；协议整数大端。首包类型 1 带正 seq=1；音频包类型 2 递增正 seq；**末包 flags=0b0011 + 负 seq + gzip 空包**。结果类型 9，错误类型 15。
+- **结束判定只看帧头 flags 0x02 位**（即官方示例包装的 `is_last_package`，它不是 JSON 字段）；**不检查 sequence 符号**（实测最终帧 seq 为正）。flags 0x04 位未在实测中出现，按保留位忽略。
+- 下行 payload 的 gzip/JSON **以每帧帧头为准**（实测下行不压缩，上行全压缩）。
+- `result` 按 **object** 解析（`text` + `utterances[]`，`utterances[i].definite` 为分句确定标志；文档表格"list"不实）。
+- 性能实测（6.12s 语音）：单遍尾延迟 0.209s，二遍 0.767s。价格：2.0 流式 1 元/小时，按时长毫秒级累计。
+- 参考实现：官方 `volcengine/veadk-python` 协议层；同平台 Swift 参考 `joewongjc/type4me`（VolcProtocol.swift）。
+
+## 5. 文本注入策略（真机已验证基线）
+
+- 运行时探测焦点元素：**`AXSelectedText` 可写 → AX 定点直写**；否则 → **剪贴板快照 + 定向 Cmd+V + 恢复原剪贴板**（changeCount 校验，第三方改动则放弃恢复）。
+- 安全输入框（subrole 含 Secure）**拒绝注入**；注入结果不明时暂存文字，不盲目重试、不先 AX 后粘贴双写。
+- 不整段替换 AXValue；不附加 Return；不把识别出的"发送"解释为提交命令。
+- 权限：辅助功能 + 事件投递，启动时预检（`AXIsProcessTrustedWithOptions` / `CGPreflightPostEventAccess`）。
+- 兼容承诺仅限实测应用：TextEdit 双路径通过；iTerm2 须走粘贴降级。**终端粘贴执行行为（bracketed paste）未实测，第一版不承诺终端兼容**。新应用接入 = 跑 `diagnostics/inject-probe.swift` 一次。
+
+## 6. 交互合同（用户已确认）
+
+**录音队列**：最多 2 条；第三条录音直接拒绝并提示。后句可录，但必须等前句成功或被显式处理后才输入——文字出现顺序 = 说话顺序。
+
+**异常行为**：
+- 录音/等待期间切换目标或失焦：暂停自动输入并暂存；用户选好输入框后显式「输入到这里」恢复。
+- 转写失败：保留该段录音供手动重试，成功后删除；已有文字但输入失败时保留文字。
+- 返回键：只取消最新活动录音/转写，绝不隐式删除较早待处理内容。
+- 退出：有待处理内容时显式二选一——本地加密保留到下次启动（恢复处理完即删，不形成长期历史）或立即丢弃。
+
+**状态反馈**：底部不抢焦点浮条，四状态「正在听 / 正在转写 / 已输入 / 需处理」，文案带下一步指引。
+
+**首次配对引导**：菜单栏三态（未配对/已配对未连接/已连接）；未配对时菜单弹窗内嵌图文步骤 + 「打开蓝牙设置」按钮。
+
+## 7. 界面基线（原型已验收）
+
+原生 SwiftUI 菜单栏应用（`MenuBarExtra` + `.window` 弹窗）。视觉基线见可运行原型 `.scratch/mivibe/prototypes/MiVibeProto.swift`：
+
+- 菜单栏图标随三态切换（`mic.badge.plus` 橙 / `mic.slash` 灰 / `mic.fill` 绿）。
+- 浮条：`NSPanel` + `.nonactivatingPanel` + `canBecomeKey/Main=false`，黑底圆角（色点 + 状态词 + 指引文案），底部居中，不抢焦点已实测（轮播期间 TextEdit 打字无打断）。
+- 设置页：工具栏三分页（豆包语音 / 遥控器 / 关于），分组表单、左列右对齐短标签、说明入脚注、定高无滚动条。API Key 用 SecureField 录入存 Keychain，附控制台直达按钮；二遍识别开关默认开。
+
+## 8. 技术栈与分发
+
+- SwiftUI + AppKit 混合（MenuBarExtra、NSPanel、IOHIDManager、CoreBluetooth、AX API）。
+- **非沙盒**（AX 与沙盒不兼容）；**自签证书固定身份**（避免授权反复弹）；仅限本机运行。
+- 不公证、不上架、第一版不开源。
+- 凭据：豆包 API Key 存 macOS Keychain，设置页录入一次；密钥不进仓库与聊天。
+- 配置即设置页：Key 录入 + 二遍开关 + 控制台/蓝牙设置直达。
+
+## 9. 验收清单
+
+硬指标：
+1. 端到端（按住语音键 → 文字上屏）P95 < 1.5s（二遍开启下）。
+2. 连续 10 次按住说话，10/10 成功上屏。
+
+主观验收：用户本人连续一天真实使用（写代码 + 日常输入），无"想砸键盘"级问题；识别准确率以体感为准，不设数字。
+
+编程预设验收：Codex 预设下确认键能发送（通用模式不得发送）。
+
+附录级验收项（实现后跑）：`diagnostics/` 下探针复测——voice-probe（音频链路）、stress-probe cycles（连接与快速会话）、inject-probe（注入矩阵）。
+
+## 10. 明确不承诺（已知边界）
+
+- 终端粘贴行为未实测，终端场景不在兼容承诺内。
+- 取消/失败调用的账单归因未经控制台核对（测试费用合计约 0.004 元，台账 `diagnostics/asr-usage.jsonl`）。
+- 蓝牙关闭/休眠/移出范围的恢复未专项实测（用户日常经验背书 + 手动重试兜底）。
+- 不保存长期录音历史；退出保留为一次性续命。
+- 仅 macOS 26.5.2 + 固件 2671 的这一台设备经过验证；其他机型/系统版本不承诺。
+
+## 附录：证据与工具索引
+
+| 资产 | 位置 |
+| --- | --- |
+| 决策地图与票据 | `.scratch/mivibe/map.md`、`.scratch/mivibe/issues/01-13` |
+| 协议研究（文档核验/线上帧合同） | `.scratch/mivibe/research/doubao-contract.md`、`doubao-wire.md` |
+| 真机硬件验证记录 | `.scratch/mivibe/research/hardware-check.md` |
+| macOS 注入研究 | `.scratch/mivibe/research/macos.md` |
+| ASR 实测探针 + 证据帧 | `.scratch/mivibe/diagnostics/asr-probe.py`、`asr-evidence-*.jsonl` |
+| 硬件诊断（HID/BLE/语音/压力/注入） | `.scratch/mivibe/diagnostics/*.swift` |
+| 交互逻辑原型 | `.scratch/mivibe/prototypes/recovery-flow-prototype.html` |
+| SwiftUI 界面原型 | `.scratch/mivibe/prototypes/MiVibeProto.swift` |

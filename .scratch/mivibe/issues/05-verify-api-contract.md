@@ -2,8 +2,8 @@
 
 Type: task
 Label: wayfinder:task
-Status: open
-Assignee: none
+Status: resolved
+Assignee: taliove (with Codex)
 Parent: ../map.md
 Blocked by: 01
 
@@ -14,3 +14,9 @@ Blocked by: 01
 ## Context
 
 [豆包语音首轮研究](../research/doubao.md) 明确记录了已核实的方向与未核实的协议字段。
+
+## Answer
+
+2026-09-08：已通过浏览器取得当前官方接口、历史二进制协议和计费正文，完成公开资料核验。[核验报告](../research/doubao-contract.md) 记录 API Key、2.0 资源、PCM 参数、尾包 flags、最终响应与分句区别、二遍行为和时长计费。
+
+旧来源现属历史文档，已改以当前双向流式接口为主要依据。文档包含 sequence 符号、result 类型和包装层/线协议差异；未获得官方附件内容、未验证用户账号、未调用收费 API。上述剩余证据转入「豆包账号与实际协议帧如何通过小样验证」，不宣称接入已经可用。

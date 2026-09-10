@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MiVibe 待处理内容逻辑原型</title>
+  <style>
+    :root { color-scheme: light; --ink:#15243a; --muted:#627083; --line:#dbe3ec; --bg:#f4f7fb; --card:#fff; --blue:#1677ff; --blue2:#eaf3ff; --amber:#b86100; --amber2:#fff3db; --green:#087c5b; --green2:#e8f8f2; --red:#bd2c30; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC",sans-serif; }
+    main { width:min(1120px,calc(100% - 32px)); margin:32px auto 120px; }
+    h1 { margin:0 0 8px; font-size:30px; letter-spacing:-.02em; }
+    h2 { margin:0 0 14px; font-size:18px; }
+    p { margin:0; } .lead { color:var(--muted); max-width:850px; }
+    .throwaway { display:inline-block; margin-bottom:14px; padding:5px 9px; border-radius:999px; background:#e7ebf0; color:#536173; font-size:12px; font-weight:650; }
+    .grid { display:grid; grid-template-columns:minmax(0,1.15fr) minmax(340px,.85fr); gap:18px; margin-top:24px; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:18px; padding:20px; box-shadow:0 10px 30px rgba(33,52,78,.06); }
+    .statusbar { display:flex; align-items:center; gap:10px; border-radius:14px; padding:13px 15px; margin-bottom:16px; font-weight:650; }
+    .statusbar.listening { background:var(--blue2); color:#075ec9; }
+    .statusbar.transcribing { background:#f0edff; color:#6349c7; }
+    .statusbar.inserted { background:var(--green2); color:var(--green); }
+    .statusbar.attention { background:var(--amber2); color:var(--amber); }
+    .dot { width:9px; height:9px; border-radius:50%; background:currentColor; }
+    dl { display:grid; grid-template-columns:125px 1fr; gap:8px 12px; margin:0; }
+    dt { color:var(--muted); } dd { margin:0; font-weight:600; }
+    .queue { display:grid; gap:10px; margin-top:16px; }
+    .item { border:1px solid var(--line); border-radius:14px; padding:13px; }
+    .item-head { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+    .pill { padding:3px 8px; border-radius:999px; background:#eef2f7; color:#526174; font-size:12px; font-weight:700; }
+    .item p { margin-top:7px; color:var(--muted); font-size:13px; }
+    .empty { border:1px dashed #cbd5e1; color:var(--muted); border-radius:14px; padding:24px; text-align:center; }
+    .controls { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }
+    button, select { font:inherit; }
+    button { border:1px solid var(--line); background:white; color:var(--ink); border-radius:11px; padding:10px 12px; cursor:pointer; font-weight:650; }
+    button:hover { border-color:#aab8c8; } button.primary { background:var(--blue); border-color:var(--blue); color:#fff; }
+    button.warn { color:var(--red); } button:disabled { opacity:.4; cursor:not-allowed; }
+    select { width:100%; border:1px solid var(--line); border-radius:11px; padding:10px; margin:0 0 10px; background:white; }
+    .event { min-height:44px; margin-top:12px; padding:11px 12px; border-radius:11px; background:#f7f9fc; color:#526174; }
+    .tabs { display:flex; gap:7px; flex-wrap:wrap; margin-bottom:14px; }
+    .tabs button.active { background:var(--ink); color:white; border-color:var(--ink); }
+    .guide { margin-top:18px; } .guide-desc { color:var(--muted); min-height:46px; }
+    .steps { display:grid; gap:8px; margin-top:13px; }
+    .steps button { text-align:left; }
+    .steps button.next { border-color:var(--blue); box-shadow:0 0 0 2px rgba(22,119,255,.09); }
+    .decision { margin-top:18px; padding:14px; border-radius:14px; background:#f8fafc; color:#526174; font-size:13px; }
+    .exit-panel { margin-top:12px; padding:12px; border:1px solid #efcc90; background:#fff8e9; border-radius:12px; }
+    .exit-panel .controls { margin-top:10px; }
+    .floatbar { position:fixed; left:50%; bottom:22px; transform:translateX(-50%); display:flex; align-items:center; gap:12px; min-width:min(560px,calc(100% - 28px)); padding:12px 15px; border-radius:16px; color:white; background:rgba(20,34,54,.94); box-shadow:0 16px 45px rgba(20,34,54,.28); backdrop-filter:blur(12px); }
+    .floatbar strong { white-space:nowrap; } .floatbar span { color:#d6dee9; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    @media(max-width:820px){ .grid{grid-template-columns:1fr}.controls{grid-template-columns:1fr 1fr} }
+  </style>
+</head>
+<body>
+<main>
+  <span class="throwaway">抛弃式逻辑原型 · 不连接遥控器/API</span>
+  <h1>连续录音与失败恢复，状态是否自然？</h1>
+  <p class="lead">按任意顺序操作，观察第一句还在转写时开始第二句、失焦、失败、返回键取消、队列满和退出时的结果。这个页面验证行为，不决定最终界面。</p>
+
+  <div class="grid">
+    <section class="card">
+      <h2>当前完整状态</h2>
+      <div id="status" class="statusbar inserted"><i class="dot"></i><span></span></div>
+      <dl>
+        <dt>当前输入目标</dt><dd id="target"></dd>
+        <dt>录音队列</dt><dd id="count"></dd>
+        <dt>自动输入</dt><dd id="autoinsert"></dd>
+        <dt>退出状态</dt><dd id="exitState"></dd>
+      </dl>
+      <div id="queue" class="queue"></div>
+      <div id="exitPanel"></div>
+    </section>
+
+    <section class="card">
+      <h2>自由操作</h2>
+      <select id="targetSelect" aria-label="当前输入目标">
+        <option>Codex 输入框</option><option>微信输入框</option><option>备忘录正文</option><option>没有可编辑输入框</option>
+      </select>
+      <div class="controls">
+        <button class="primary" data-action="PRESS_VOICE">按下语音键</button>
+        <button data-action="RELEASE_VOICE">松开语音键</button>
+        <button data-action="TRANSCRIBE_OK">转写成功</button>
+        <button data-action="TRANSCRIBE_FAIL">转写失败</button>
+        <button data-action="FOCUS_CHANGED">切换输入目标</button>
+        <button data-action="INPUT_HERE">输入到这里</button>
+        <button data-action="RETRY">重试最早失败项</button>
+        <button class="warn" data-action="BACK">遥控器返回键</button>
+        <button data-action="SAFE_EXIT">安全退出</button>
+        <button data-action="RELAUNCH">重新打开应用</button>
+        <button data-action="RESET">重新开始</button>
+      </div>
+      <div id="event" class="event"></div>
+    </section>
+  </div>
+
+  <section class="card guide">
+    <h2>引导场景</h2>
+    <div id="tabs" class="tabs"></div>
+    <p id="guideDesc" class="guide-desc"></p>
+    <div id="steps" class="steps"></div>
+    <div class="decision">原型当前建议：最多保留两条未完成内容；后一句可以录，但必须等前一句成功或被处理后才能输入。返回键只取消最新的活动录音/转写。待处理内容不会被返回键隐式删除；退出时必须明确选择保留或丢弃。</div>
+  </section>
+</main>
+<div class="floatbar"><i class="dot"></i><strong id="floatState"></strong><span id="floatMessage"></span></div>
+
+<script>
+const RecoveryModel = (() => {
+  const initial = () => ({ target:'Codex 输入框', targetRevision:0, queue:[], nextId:1, lastEvent:'可以开始录音。', exitPrompt:false, exited:false, retained:[] });
+  const active = s => [...s.queue].reverse().find(x => x.phase === 'listening' || x.phase === 'transcribing');
+  const oldestAttention = s => s.queue.find(x => x.phase === 'needsAttention');
+  const insertReadyInOrder = s => {
+    while (s.queue[0]?.phase === 'ready') {
+      const item = s.queue[0];
+      if (item.targetRevision !== s.targetRevision || s.target === '没有可编辑输入框') {
+        item.phase='needsAttention'; item.reason='输入目标已变化';
+        s.lastEvent=`第 ${item.id} 句已暂存，请选好输入框后点击“输入到这里”。`;
+        break;
+      }
+      s.queue.shift(); s.lastEvent=`第 ${item.id} 句已直接输入到 ${s.target}；音频和文字已删除。`;
+    }
+    return s;
+  };
+  const reduce = (state, action) => {
+    let s = structuredClone(state);
+    if (action.type === 'RESET') return initial();
+    if (action.type === 'RELAUNCH') {
+      if (!s.exited) { s.lastEvent='应用仍在运行。'; return s; }
+      s.exited=false; s.exitPrompt=false; s.queue=s.retained; s.retained=[];
+      s.lastEvent=s.queue.length ? '已恢复待处理内容，自动输入仍暂停。' : '应用已重新打开。'; return s;
+    }
+    if (s.exited) { s.lastEvent='应用已退出，请先重新打开。'; return s; }
+    if (action.type === 'SET_TARGET') { if(s.target!==action.target)s.targetRevision++; s.target=action.target; s.lastEvent=`当前焦点：${s.target}`; return s; }
+    if (action.type === 'FOCUS_CHANGED') { s.targetRevision++; s.target=s.target==='Codex 输入框'?'微信输入框':'备忘录正文'; s.lastEvent=`输入目标已切换到 ${s.target}；已有录音完成后不会猜测输入位置。`; return s; }
+    if (action.type === 'PRESS_VOICE') {
+      if (active(s)?.phase === 'listening') { s.lastEvent='已经在录音，没有重复开始。'; return s; }
+      if (s.queue.length >= 2) { s.lastEvent='队列已满：请先处理前两句。第三句未开始录音。'; return s; }
+      s.queue.push({id:s.nextId++,phase:'listening',target:s.target,targetRevision:s.targetRevision,text:'',reason:'',hasAudio:true});
+      s.lastEvent='正在听；松开语音键后开始转写。'; return s;
+    }
+    if (action.type === 'RELEASE_VOICE') {
+      const item=[...s.queue].reverse().find(x=>x.phase==='listening');
+      if (!item) { s.lastEvent='没有正在进行的录音。'; return s; }
+      item.phase='transcribing'; s.lastEvent=`第 ${item.id} 句正在转写；现在可以开始下一句。`; return s;
+    }
+    if (action.type === 'TRANSCRIBE_OK') {
+      const item=s.queue.find(x=>x.phase==='transcribing');
+      if (!item) { s.lastEvent='没有等待转写的内容。'; return s; }
+      item.phase='ready'; item.text=`第 ${item.id} 句识别文字`; item.hasAudio=false;
+      s.lastEvent=`第 ${item.id} 句转写完成；录音已删除。`; return insertReadyInOrder(s);
+    }
+    if (action.type === 'TRANSCRIBE_FAIL') {
+      const item=s.queue.find(x=>x.phase==='transcribing');
+      if (!item) { s.lastEvent='没有等待转写的内容。'; return s; }
+      item.phase='needsAttention'; item.reason='转写失败'; item.hasAudio=true;
+      s.lastEvent=`第 ${item.id} 句失败，保留录音供重试；后续自动输入暂停。`; return s;
+    }
+    if (action.type === 'RETRY') {
+      const item=s.queue.find(x=>x.phase==='needsAttention' && x.hasAudio);
+      if (!item) { s.lastEvent='没有可重试的录音。'; return s; }
+      item.phase='transcribing'; item.reason=''; s.lastEvent=`正在重试第 ${item.id} 句。`; return s;
+    }
+    if (action.type === 'INPUT_HERE') {
+      const item=oldestAttention(s);
+      if (!item || !item.text) { s.lastEvent='没有可恢复输入的文字；转写失败项需先重试。'; return s; }
+      s.queue=s.queue.filter(x=>x.id!==item.id); s.lastEvent=`第 ${item.id} 句已输入到 ${s.target}；待处理内容已删除。`; return insertReadyInOrder(s);
+    }
+    if (action.type === 'BACK') {
+      const item=active(s);
+      if (!item) { s.lastEvent='没有活动录音或转写；返回键不会删除待处理内容。'; return s; }
+      s.queue=s.queue.filter(x=>x.id!==item.id); s.lastEvent=`已取消最新的第 ${item.id} 句；较早内容保持不变。`; return s;
+    }
+    if (action.type === 'SAFE_EXIT') {
+      if (!s.queue.length) { s.exited=true; s.lastEvent='没有待处理内容，已安全退出。'; return s; }
+      s.exitPrompt=true; s.lastEvent='退出前请选择保留到下次或立即丢弃。'; return s;
+    }
+    if (action.type === 'EXIT_KEEP') {
+      s.retained=s.queue; s.queue=[]; s.exited=true; s.exitPrompt=false; s.lastEvent='待处理内容加密保留到下次启动；不形成长期历史。'; return s;
+    }
+    if (action.type === 'EXIT_DISCARD') {
+      s.queue=[]; s.retained=[]; s.exited=true; s.exitPrompt=false; s.lastEvent='待处理录音和文字已全部丢弃，应用退出。'; return s;
+    }
+    return s;
+  };
+  return { initial, reduce };
+})();
+
+let state=RecoveryModel.initial();
+const scenarios=[
+  {name:'连续两句',desc:'第一句转写时开始第二句；即使第二句先完成，也要等第一句按顺序输入。',steps:[['第一句：按下','PRESS_VOICE'],['第一句：松开','RELEASE_VOICE'],['第二句：按下','PRESS_VOICE'],['第二句：松开','RELEASE_VOICE'],['第一句转写成功','TRANSCRIBE_OK'],['第二句转写成功','TRANSCRIBE_OK']]},
+  {name:'失焦恢复',desc:'录音后切换目标。识别文字会暂存，只有你选中目标并点击“输入到这里”才恢复。',steps:[['按下语音键','PRESS_VOICE'],['松开语音键','RELEASE_VOICE'],['切换输入目标','FOCUS_CHANGED'],['转写成功','TRANSCRIBE_OK'],['输入到这里','INPUT_HERE']]},
+  {name:'失败阻塞',desc:'第一句失败后保留录音并阻塞顺序；重试成功后队列继续。',steps:[['第一句：按下','PRESS_VOICE'],['第一句：松开','RELEASE_VOICE'],['第一句转写失败','TRANSCRIBE_FAIL'],['第二句：按下','PRESS_VOICE'],['第二句：松开','RELEASE_VOICE'],['重试第一句','RETRY'],['第一句重试成功','TRANSCRIBE_OK'],['第二句转写成功','TRANSCRIBE_OK']]},
+  {name:'取消与队列满',desc:'两条未完成时第三次录音会被拒绝；返回键取消最新活动项，不删除较早内容。',steps:[['第一句：按下','PRESS_VOICE'],['第一句：松开','RELEASE_VOICE'],['第二句：按下','PRESS_VOICE'],['第二句：松开','RELEASE_VOICE'],['第三句尝试按下','PRESS_VOICE'],['返回键取消最新项','BACK'],['再尝试按下','PRESS_VOICE']]}
+];
+let scenario=0, step=0;
+const $=id=>document.getElementById(id);
+function statusOf(s){
+  if(s.exited)return ['attention','应用已退出'];
+  if(s.queue.some(x=>x.phase==='listening'))return ['listening','正在听'];
+  if(s.queue.some(x=>x.phase==='transcribing'))return ['transcribing','正在转写'];
+  if(s.queue.some(x=>x.phase==='needsAttention'))return ['attention','需处理'];
+  return ['inserted',s.lastEvent.includes('输入')?'已输入':'待命'];
+}
+function render(){
+  const [kind,label]=statusOf(state), status=$('status'); status.className=`statusbar ${kind}`; status.querySelector('span').textContent=label;
+  $('target').textContent=state.target; $('targetSelect').value=state.target; $('count').textContent=`${state.queue.length} / 2`;
+  $('autoinsert').textContent=state.queue.some(x=>x.phase==='needsAttention')?'暂停，等待处理':'按顺序启用';
+  $('exitState').textContent=state.exited?'已退出':state.exitPrompt?'等待退出选择':'运行中'; $('event').textContent=state.lastEvent;
+  $('floatState').textContent=label; $('floatMessage').textContent=state.lastEvent;
+  $('queue').innerHTML=state.queue.length?state.queue.map(x=>`<div class="item"><div class="item-head"><strong>第 ${x.id} 句</strong><span class="pill">${({listening:'正在听',transcribing:'正在转写',ready:'等待前句',needsAttention:'需处理'})[x.phase]}</span></div><p>开始目标：${x.target} · ${x.text||x.reason||'录音暂存在内存'} · ${x.hasAudio?'保留录音':'录音已删除'}</p></div>`).join(''):'<div class="empty">没有待处理内容</div>';
+  $('exitPanel').innerHTML=state.exitPrompt?'<div class="exit-panel"><strong>仍有待处理内容</strong><p>保留到下次打开，或明确丢弃后退出。</p><div class="controls"><button data-exit="EXIT_KEEP">保留并退出</button><button class="warn" data-exit="EXIT_DISCARD">丢弃并退出</button></div></div>':'';
+  document.querySelectorAll('[data-exit]').forEach(b=>b.onclick=()=>dispatch({type:b.dataset.exit})); renderGuide();
+}
+function dispatch(action){ state=RecoveryModel.reduce(state,action); render(); }
+function startScenario(i){ scenario=i; step=0; state=RecoveryModel.initial(); render(); }
+function renderGuide(){
+  $('tabs').innerHTML=scenarios.map((s,i)=>`<button class="${i===scenario?'active':''}" data-tab="${i}">${s.name}</button>`).join('');
+  $('guideDesc').textContent=scenarios[scenario].desc;
+  $('steps').innerHTML=scenarios[scenario].steps.map((s,i)=>`<button class="${i===step?'next':''}" ${i>step?'disabled':''} data-step="${i}">${i+1}. ${s[0]}</button>`).join('');
+  document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>startScenario(Number(b.dataset.tab)));
+  document.querySelectorAll('[data-step]').forEach(b=>b.onclick=()=>{ if(Number(b.dataset.step)!==step)return; dispatch({type:scenarios[scenario].steps[step][1]}); step=Math.min(step+1,scenarios[scenario].steps.length); render(); });
+}
+document.querySelectorAll('[data-action]').forEach(b=>b.onclick=()=>dispatch({type:b.dataset.action}));
+$('targetSelect').onchange=e=>dispatch({type:'SET_TARGET',target:e.target.value});
+render();
+</script>
+</body>
+</html>
