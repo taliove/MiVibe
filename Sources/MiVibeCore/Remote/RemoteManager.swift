@@ -1,6 +1,5 @@
 import CoreBluetooth
 import Foundation
-import MiVibeCore
 
 /// 遥控器 BLE 语音会话（SPEC §2，ATVV 1.0）。
 ///
@@ -10,11 +9,11 @@ import MiVibeCore
 /// - **以 `AUDIO_STOP` 收口**，不以 HID 松开截断——松手后仍有尾帧在途。
 /// - 固件 2671 首连可能返回非标准 GET_CAPS 响应，须由 `AUDIO_START` 的 codec=2 二次确认。
 /// - 应用主动断开后重连可靠，进程被杀后立即重连即可恢复，**不需要退避**。
-final class RemoteManager: NSObject {
+public final class RemoteManager: NSObject {
     // MARK: - 协议常量
 
     // CBUUID 不是 Sendable，用计算属性避开全局可变状态检查。
-    static var serviceUUID: CBUUID { CBUUID(string: "AB5E0001-5A21-4F05-BC7D-AF01F617B664") }
+    public static var serviceUUID: CBUUID { CBUUID(string: "AB5E0001-5A21-4F05-BC7D-AF01F617B664") }
     private static let txPrefix = "AB5E0002"
     private static let audioPrefix = "AB5E0003"
     private static let controlPrefix = "AB5E0004"
@@ -23,7 +22,7 @@ final class RemoteManager: NSObject {
     private static let expectedCodec: UInt8 = 2   // 16 kHz ADPCM
     private static let expectedFrameBytes = 120
 
-    enum State: Equatable {
+    public enum State: Equatable {
         case bluetoothUnavailable
         case searching
         case connecting
@@ -33,23 +32,23 @@ final class RemoteManager: NSObject {
     }
 
     /// 一次完整录音的产物。PCM 已解码为 16 kHz 单声道 pcm_s16le。
-    struct Recording {
-        let pcm: Data
-        let frameCount: Int
-        let duration: TimeInterval
+    public struct Recording {
+        public let pcm: Data
+        public let frameCount: Int
+        public let duration: TimeInterval
     }
 
     // MARK: - 回调
 
-    var onStateChange: ((State) -> Void)?
+    public var onStateChange: ((State) -> Void)?
     /// 设备自发开始录音（用户按住了语音键）。
-    var onRecordingStart: (() -> Void)?
+    public var onRecordingStart: (() -> Void)?
     /// 录音结束（收到 AUDIO_STOP），交付解码后的 PCM。
-    var onRecordingFinish: ((Recording) -> Void)?
+    public var onRecordingFinish: ((Recording) -> Void)?
     /// 边收边给的增量 PCM，供流式上传。
-    var onAudioChunk: ((Data) -> Void)?
+    public var onAudioChunk: ((Data) -> Void)?
 
-    private(set) var state: State = .bluetoothUnavailable {
+    public private(set) var state: State = .bluetoothUnavailable {
         didSet { if state != oldValue { onStateChange?(state) } }
     }
 
@@ -68,14 +67,14 @@ final class RemoteManager: NSObject {
     private var recordingStart: TimeInterval = 0
     private var streamID: UInt8 = 0
 
-    override init() {
+    public override init() {
         super.init()
         central = CBCentralManager(delegate: self, queue: .main)
     }
 
     // MARK: - 连接
 
-    func connect() {
+    public func connect() {
         guard central.state == .poweredOn else { return }
         // 已连接的设备走 retrieve，未连接才扫描。
         let known = central.retrieveConnectedPeripherals(withServices: [Self.serviceUUID])
@@ -87,7 +86,7 @@ final class RemoteManager: NSObject {
         }
     }
 
-    func disconnect() {
+    public func disconnect() {
         if let peripheral { central.cancelPeripheralConnection(peripheral) }
         reset()
     }
@@ -122,7 +121,7 @@ final class RemoteManager: NSObject {
 // MARK: - CBCentralManagerDelegate
 
 extension RemoteManager: CBCentralManagerDelegate {
-    func centralManagerDidUpdateState(_ central: CBCentralManager) {
+    public func centralManagerDidUpdateState(_ central: CBCentralManager) {
         if central.state == .poweredOn {
             connect()
         } else {
@@ -131,7 +130,7 @@ extension RemoteManager: CBCentralManagerDelegate {
         }
     }
 
-    func centralManager(
+    public func centralManager(
         _ central: CBCentralManager,
         didDiscover peripheral: CBPeripheral,
         advertisementData: [String: Any],
@@ -141,12 +140,12 @@ extension RemoteManager: CBCentralManagerDelegate {
         attach(peripheral)
     }
 
-    func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
+    public func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         state = .negotiating
         peripheral.discoverServices([Self.serviceUUID])
     }
 
-    func centralManager(
+    public func centralManager(
         _ central: CBCentralManager,
         didFailToConnect peripheral: CBPeripheral,
         error: Error?
@@ -156,7 +155,7 @@ extension RemoteManager: CBCentralManagerDelegate {
         connect()
     }
 
-    func centralManager(
+    public func centralManager(
         _ central: CBCentralManager,
         didDisconnectPeripheral peripheral: CBPeripheral,
         error: Error?
@@ -171,14 +170,14 @@ extension RemoteManager: CBCentralManagerDelegate {
 // MARK: - CBPeripheralDelegate
 
 extension RemoteManager: CBPeripheralDelegate {
-    func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
+    public func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         guard error == nil else { return }
         for service in peripheral.services ?? [] {
             peripheral.discoverCharacteristics(nil, for: service)
         }
     }
 
-    func peripheral(
+    public func peripheral(
         _ peripheral: CBPeripheral,
         didDiscoverCharacteristicsFor service: CBService,
         error: Error?
@@ -198,7 +197,7 @@ extension RemoteManager: CBPeripheralDelegate {
         }
     }
 
-    func peripheral(
+    public func peripheral(
         _ peripheral: CBPeripheral,
         didUpdateNotificationStateFor characteristic: CBCharacteristic,
         error: Error?
@@ -210,7 +209,7 @@ extension RemoteManager: CBPeripheralDelegate {
         write(Self.getCaps)
     }
 
-    func peripheral(
+    public func peripheral(
         _ peripheral: CBPeripheral,
         didUpdateValueFor characteristic: CBCharacteristic,
         error: Error?

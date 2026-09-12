@@ -5,18 +5,18 @@ import MiVibeCore
 ///
 /// 认证与参数全部按实测合同：三头认证 + 2.0 小时版资源 + 16 kHz mono pcm_s16le
 /// 200ms 分包。二遍识别默认开（尾延迟 0.767s 换更准分句）。
-actor DoubaoClient {
-    static let endpoint = URL(string: "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async")!
-    static let resourceID = "volc.seedasr.sauc.duration"   // 2.0 小时版
-    static let segmentBytes = 6400                          // 200ms @ 16k/16bit/mono
+public actor DoubaoClient {
+    public static let endpoint = URL(string: "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async")!
+    public static let resourceID = "volc.seedasr.sauc.duration"   // 2.0 小时版
+    public static let segmentBytes = 6400                          // 200ms @ 16k/16bit/mono
 
-    enum ClientError: Error, LocalizedError {
+    public enum ClientError: Error, LocalizedError {
         case noAPIKey
         case connectionFailed(String)
         case serverError(code: Int32?, message: String?)
         case noResult
 
-        var errorDescription: String? {
+        public var errorDescription: String? {
             switch self {
             case .noAPIKey: return "尚未配置 API Key"
             case .connectionFailed(let detail): return "连接失败：\(detail)"
@@ -27,25 +27,28 @@ actor DoubaoClient {
         }
     }
 
-    struct Options {
-        var enableNonstream = true   // 二遍识别，SPEC §4 默认开
-        var enablePunctuation = true
-        var enableITN = true
-        var enableDDC = true
+    public struct Options {
+        public init() {}
+        public var enableNonstream = true   // 二遍识别，SPEC §4 默认开
+        public var enablePunctuation = true
+        public var enableITN = true
+        public var enableDDC = true
     }
+
+    public init() {}
 
     private var task: URLSessionWebSocketTask?
     private var sequence: Int32 = 1
     /// 诊断用：打印每个下行帧的帧头。
-    var verbose = false
+    public var verbose = false
 
-    func setVerbose(_ on: Bool) { verbose = on }
+    public func setVerbose(_ on: Bool) { verbose = on }
 
     /// 一次性转写：给定完整 PCM，返回最终文本。
     ///
     /// 松手后才调用（按住说话场景不需要边说边显示中间结果——中间结果只用于状态提示，
     /// 而输入只发生一次）。
-    func transcribe(pcm: Data, options: Options = Options()) async throws -> String {
+    public func transcribe(pcm: Data, options: Options = Options()) async throws -> String {
         let key = try apiKey()
         try await open(apiKey: key)
         defer { close() }
@@ -181,7 +184,7 @@ actor DoubaoClient {
     }
 
     /// `result` 是 object（实测；文档写的 list 不实）。
-    static func extractText(_ payload: Data?) -> String? {
+    public static func extractText(_ payload: Data?) -> String? {
         guard let payload,
               let json = try? JSONSerialization.jsonObject(with: payload) as? [String: Any],
               let result = json["result"] as? [String: Any],

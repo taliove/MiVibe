@@ -6,8 +6,8 @@ import AppKit
 /// 策略：运行时探测焦点元素 → `AXSelectedText` 可写就定点直写；否则剪贴板快照
 /// + 定向 Cmd+V + 恢复。安全输入框拒绝。**不做 AX 失败后自动改粘贴的双写**，
 /// 避免重复输入。
-enum TextInjector {
-    enum Target: Equatable {
+public enum TextInjector {
+    public enum Target: Equatable {
         case ax(pid: pid_t)
         case paste(pid: pid_t)
         case refusedSecureField
@@ -15,7 +15,7 @@ enum TextInjector {
         case noPermission
     }
 
-    enum InjectError: Error, LocalizedError {
+    public enum InjectError: Error, LocalizedError {
         case noPermission
         case noFocusedElement
         case secureField
@@ -23,7 +23,7 @@ enum TextInjector {
         case pasteboardBusy
         case eventPostFailed
 
-        var errorDescription: String? {
+        public var errorDescription: String? {
             switch self {
             case .noPermission: return "缺少辅助功能或事件投递权限"
             case .noFocusedElement: return "找不到输入焦点"
@@ -36,13 +36,13 @@ enum TextInjector {
     }
 
     /// 当前焦点的注入能力，供按下语音键时抓取快照。
-    struct Snapshot: Equatable {
-        let pid: pid_t
-        let element: AXUIElement
-        let selectedTextSettable: Bool
-        let isSecure: Bool
+    public struct Snapshot: Equatable {
+        public let pid: pid_t
+        public let element: AXUIElement
+        public let selectedTextSettable: Bool
+        public let isSecure: Bool
 
-        static func == (lhs: Snapshot, rhs: Snapshot) -> Bool {
+        public static func == (lhs: Snapshot, rhs: Snapshot) -> Bool {
             lhs.pid == rhs.pid && CFEqual(lhs.element, rhs.element)
         }
     }
@@ -50,7 +50,7 @@ enum TextInjector {
     // MARK: - 探测
 
     /// 抓取当前前台应用的焦点元素。按下语音键时调用，松手写入前**再抓一次**比对。
-    static func snapshotFocus() -> Snapshot? {
+    public static func snapshotFocus() -> Snapshot? {
         guard Permissions.hasAccessibility(),
               let front = NSWorkspace.shared.frontmostApplication
         else { return nil }
@@ -81,7 +81,7 @@ enum TextInjector {
     ///
     /// 调用前应确认焦点未变（由 Coordinator 负责比对，变了就暂存而不是强写）。
     @discardableResult
-    static func inject(_ text: String, into snapshot: Snapshot) throws -> Target {
+    public static func inject(_ text: String, into snapshot: Snapshot) throws -> Target {
         guard Permissions.hasAccessibility() else { throw InjectError.noPermission }
         guard !snapshot.isSecure else { throw InjectError.secureField }
 
@@ -109,7 +109,7 @@ enum TextInjector {
         "com.apple.systemuiserver",
     ]
 
-    static func isRefusedSystemTarget(pid: pid_t) -> Bool {
+    public static func isRefusedSystemTarget(pid: pid_t) -> Bool {
         guard let bundleID = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
         else { return false }
         return refusedBundleIDs.contains(bundleID)

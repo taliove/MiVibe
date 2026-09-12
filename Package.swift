@@ -19,6 +19,12 @@ let package = Package(
             dependencies: ["MiVibeCore"],
             path: "Sources/MiVibe"
         ),
+        // 诊断探针：与应用共享 Core，但独立入口（main.swift 不能和 @main 共存）。
+        .executableTarget(
+            name: "MiVibeProbes",
+            dependencies: ["MiVibeCore"],
+            path: "Sources/MiVibeProbes"
+        ),
         // 本机只有 Command Line Tools：XCTest 与 swift-testing 的 .swiftmodule 都不存在
         // （框架二进制在，模块接口缺失），`swift test` 无法用。因此测试是一个自带
         // 断言辅助的可执行目标：`swift run MiVibeTests`，失败时退出码非 0。

@@ -1,4 +1,5 @@
 import AppKit
+import MiVibeCore
 import Darwin
 
 // 探针输出重定向到文件时默认块缓冲，会让挂起现场完全看不见。

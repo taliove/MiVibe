@@ -4,14 +4,14 @@ import Foundation
 ///
 /// 只存 macOS 钥匙串，服务名沿用诊断阶段已在用的 `mivibe-volc-apikey`，
 /// 所以此前手工存进去的 Key 可以直接用。Key 绝不落盘到仓库或日志。
-enum Credentials {
-    static let service = "mivibe-volc-apikey"
+public enum Credentials {
+    public static let service = "mivibe-volc-apikey"
 
-    enum CredentialError: Error, LocalizedError {
+    public enum CredentialError: Error, LocalizedError {
         case notFound
         case keychain(OSStatus)
 
-        var errorDescription: String? {
+        public var errorDescription: String? {
             switch self {
             case .notFound: return "尚未配置 API Key"
             case .keychain(let status): return "钥匙串操作失败（\(status)）"
@@ -20,7 +20,7 @@ enum Credentials {
     }
 
     /// 环境变量优先，方便临时覆盖；否则读钥匙串。
-    static func apiKey() throws -> String {
+    public static func apiKey() throws -> String {
         if let fromEnv = ProcessInfo.processInfo.environment["VOLC_API_KEY"],
            !fromEnv.isEmpty {
             return fromEnv
@@ -78,12 +78,12 @@ enum Credentials {
         return key
     }
 
-    static var isConfigured: Bool {
+    public static var isConfigured: Bool {
         (try? apiKey()) != nil
     }
 
     /// 写入/更新钥匙串。
-    static func save(apiKey: String) throws {
+    public static func save(apiKey: String) throws {
         let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         let data = Data(key.utf8)
 
@@ -111,7 +111,7 @@ enum Credentials {
         }
     }
 
-    static func delete() throws {
+    public static func delete() throws {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
