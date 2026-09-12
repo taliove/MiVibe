@@ -3,3 +3,4 @@
 {"ts": "2026-09-09T13:34:37.567795+00:00", "mode": "nonstream", "audio_seconds": 6.125, "est_yuan": 0.001701}
 {"ts": "2026-09-09T13:35:24.433518+00:00", "mode": "cancel", "audio_seconds": 1.0, "est_yuan": 0.000278}
 {"ts": "2026-09-09T13:36:14.102031+00:00", "mode": "cancel-crashed-first-attempt", "audio_seconds": 1.0, "est_yuan": 0.000278, "note": "close(1006) 崩溃前已发送约1s音频，补记账"}
+{"ts": "2026-09-12T16:44:48.347629+00:00", "mode": "swift-client-e2e", "audio_seconds": 3.49, "est_yuan": 0.000969, "note": "Swift DoubaoClient 端到端验证（含此前崩溃的两次尝试，音频未上传完）"}

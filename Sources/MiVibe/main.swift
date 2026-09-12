@@ -1,3 +1,87 @@
 import AppKit
-// 占位：真实入口在步骤 3 实现
-print("MiVibe placeholder")
+import Darwin
+
+// 探针输出重定向到文件时默认块缓冲，会让挂起现场完全看不见。
+setbuf(stdout, nil)
+
+// 临时入口：真实的 SwiftUI 应用入口在步骤 3 替换掉这里。
+// 现在提供 --probe-inject 用于验证注入层（对着已聚焦的输入框写入一段带标记的文字）。
+
+let args = CommandLine.arguments
+
+if args.contains("--probe-inject") {
+    let countdown = 6.0
+    print("AX=\(Permissions.hasAccessibility()) EventPost=\(Permissions.hasEventPosting())")
+    print("请在 \(Int(countdown)) 秒内点击目标输入框…")
+    Thread.sleep(forTimeInterval: countdown)
+
+    guard let snapshot = TextInjector.snapshotFocus() else {
+        print("未取得焦点元素（检查辅助功能权限）")
+        exit(1)
+    }
+    let app = NSRunningApplication(processIdentifier: snapshot.pid)?.localizedName ?? "?"
+    print("目标=\(app) pid=\(snapshot.pid) AXSelectedText可写=\(snapshot.selectedTextSettable) 安全框=\(snapshot.isSecure)")
+
+    let marker = "mivibe注入🎤\(Int.random(in: 1000...9999))"
+    do {
+        let target = try TextInjector.inject(marker, into: snapshot)
+        print("注入成功：路径=\(target) 文字=\(marker)")
+    } catch {
+        print("注入失败：\(error.localizedDescription)")
+        exit(2)
+    }
+    exit(0)
+}
+
+if args.contains("--probe-asr") {
+    // 用 macOS say 合成一段音频走真实识别，验证 DoubaoClient 的端到端链路。
+    let sentence = args.last.flatMap { $0.hasPrefix("--") ? nil : $0 }
+        ?? "你好，这是小米遥控器语音输入的识别测试。"
+
+    let aiff = "/tmp/mivibe-asr-probe.aiff"
+    let raw = "/tmp/mivibe-asr-probe.pcm"
+    for (tool, toolArgs) in [
+        ("/usr/bin/say", ["-o", aiff, "-r", "180", sentence]),
+        ("/usr/bin/afconvert", ["-f", "WAVE", "-d", "LEI16@16000", "-c", "1", aiff, raw]),
+    ] {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: tool)
+        process.arguments = toolArgs
+        try? process.run()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else {
+            print("音频准备失败：\(tool)")
+            exit(1)
+        }
+    }
+
+    guard var pcm = FileManager.default.contents(atPath: raw) else {
+        print("读不到 PCM"); exit(1)
+    }
+    if pcm.count > 44 { pcm = pcm.dropFirst(44) }   // 去掉 WAV 头
+    let seconds = Double(pcm.count) / 32000
+    print(String(format: "音频 %.2fs（%d 字节），预计费用 %.4f 元", seconds, pcm.count, seconds / 3600))
+
+    let started = Date()
+    // 不能用 semaphore.wait() 阻塞主线程：URLSession 的回调要在主线程 run loop 上
+    // 派发，阻塞会自锁。改为跑 run loop 直到任务置位。
+    final class Done { var value = false }
+    let done = Done()
+    Task {
+        do {
+            let client = DoubaoClient()
+            await client.setVerbose(true)
+            let text = try await client.transcribe(pcm: pcm)
+            print(String(format: "识别成功（耗时 %.2fs）：%@", Date().timeIntervalSince(started), text))
+        } catch {
+            print("识别失败：\(error.localizedDescription)")
+        }
+        done.value = true
+    }
+    while !done.value, Date().timeIntervalSince(started) < 60 {
+        RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.1))
+    }
+    exit(0)
+}
+
+print("MiVibe（UI 尚未接入，可用：--probe-inject / --probe-hid / --probe-asr）")
