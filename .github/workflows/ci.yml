@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: swift build
+
+      - name: Test
+        run: swift run MiVibeTests
+
+      # Assembly sanity check: the bundle script must work on a clean machine
+      # (no signing identity on CI → falls back to ad-hoc with a warning, by design).
+      - name: Assemble app bundle
+        run: MIVIBE_SIGN_IDENTITY=- Scripts/build-app.sh release

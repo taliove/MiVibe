@@ -1,0 +1,38 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Test (release gate)
+        run: swift run MiVibeTests
+
+      # CI artifacts are ad-hoc signed: fine for verification, but the build users
+      # actually install should come from a machine with the local signing identity
+      # (Scripts/deploy.sh), so macOS privacy grants survive reinstalls.
+      - name: Build app bundle
+        run: MIVIBE_SIGN_IDENTITY=- Scripts/build-app.sh release
+
+      - name: Zip bundle
+        run: ditto -c -k --sequesterRsrc --keepParent build/MiVibe.app build/MiVibe.zip
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # Idempotent: a locally created release (with the properly signed build)
+        # may already exist for the tag — then just add the CI artifact.
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" build/MiVibe.zip --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" build/MiVibe.zip --generate-notes --verify-tag
+          fi
