@@ -1,5 +1,4 @@
 import Foundation
-import MiVibeCore
 
 /// 豆包流式 ASR 客户端（SPEC §4）。
 ///
@@ -61,7 +60,10 @@ public actor DoubaoClient {
     // MARK: - 连接
 
     private func apiKey() throws -> String {
-        do { return try Credentials.apiKey() } catch { throw ClientError.noAPIKey }
+        guard let key = Config.load().doubaoAPIKey, !key.isEmpty else {
+            throw ClientError.noAPIKey
+        }
+        return key
     }
 
     private func open(apiKey: String) async throws {

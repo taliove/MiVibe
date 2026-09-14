@@ -69,6 +69,51 @@ public struct InputQueue: Equatable {
         }
     }
 
+    // MARK: - 持久化（退出保留 / 崩溃兜底）
+
+    /// 队列里**有内容、值得留存**的项，按队序。
+    ///
+    /// `.listening` / `.transcribing` 不算：它们还没有完整内容可留。文本为空的
+    /// `targetLost` 也不算——那是一次没有产出的录音。
+    public var persistableItems: [(id: Int, item: PendingItem)] {
+        items.compactMap { entry in
+            switch entry.phase {
+            case .ready(let text) where !text.isEmpty,
+                 .needsAttention(.targetLost(let text)) where !text.isEmpty,
+                 .needsAttention(.injectionFailed(let text)) where !text.isEmpty:
+                return (entry.id, PendingItem(kind: .text, text: text))
+            case .needsAttention(.transcriptionFailed):
+                return (entry.id, PendingItem(kind: .failedAudio))
+            default:
+                return nil
+            }
+        }
+    }
+
+    /// 启动恢复：把留存的内容放回队列。
+    ///
+    /// **全部落到 `.needsAttention`，因此 `hasBlocker` 为真、`drain()` 不会跑。**
+    /// 「恢复后不自动输入」是结构上的保证，不是一句约定——用户必须自己选好输入框
+    /// 再点「输入到这里」，走的是和失焦暂存完全相同的那条路（SPEC §6）。
+    @discardableResult
+    public mutating func restore(_ saved: [PendingItem]) -> [Int] {
+        var restored: [Int] = []
+        for item in saved {
+            let id = nextID
+            nextID += 1
+            let phase: Phase
+            switch item.kind {
+            case .text:
+                phase = .needsAttention(.targetLost(text: item.text ?? ""))
+            case .failedAudio:
+                phase = .needsAttention(.transcriptionFailed)
+            }
+            items.append(Item(id: id, phase: phase))
+            restored.append(id)
+        }
+        return restored
+    }
+
     // MARK: - 事件
 
     public enum StartResult: Equatable {
