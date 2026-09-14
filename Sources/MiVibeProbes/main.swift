@@ -85,4 +85,18 @@ if args.contains("--probe-asr") {
     exit(0)
 }
 
-print("MiVibe（UI 尚未接入，可用：--probe-inject / --probe-hid / --probe-asr）")
+if args.contains("--probe-seize") {
+    SeizeProbe.run(voiceMode: false)
+    exit(0)
+}
+
+if args.contains("--probe-seize-voice") {
+    SeizeProbe.run(voiceMode: true)
+    exit(0)
+}
+
+print("MiVibe 探针。可用：")
+print("  --probe-inject        验证文本注入（对着已聚焦输入框写一段标记文字）")
+print("  --probe-asr [句子]    用 say 合成音频跑真实识别")
+print("  --probe-seize         HID 独占闸门：按键真实行为 + 独占能否抑制")
+print("  --probe-seize-voice   独占期间 BLE 语音通道是否存活")

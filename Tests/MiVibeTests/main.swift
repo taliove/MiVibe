@@ -7,5 +7,8 @@ print(String(repeating: "═", count: 52))
 ADPCMTests.run()
 DoubaoFrameTests.run()
 InputQueueTests.run()
+AudioLevelTests.run()
+KeyMappingTests.run()
+PendingStoreTests.run()
 
 Harness.finish()

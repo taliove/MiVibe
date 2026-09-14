@@ -13,7 +13,17 @@ struct MiVibeApp: App {
             MenuPopover(coordinator: coordinator)
                 .onAppear { AppDelegate.shared.attach(coordinator) }
         } label: {
-            Image(systemName: coordinator.link.icon)
+            // 队列里还有没处理完的内容时挂个角标。浮条超时会自己收起，但内容不会
+            // 丢——没有这个角标，用户就无从得知还有文字在等着处理。
+            ZStack(alignment: .topTrailing) {
+                Image(systemName: coordinator.link.icon)
+                if coordinator.hasPendingWork {
+                    Circle()
+                        .fill(.red)
+                        .frame(width: 5, height: 5)
+                        .offset(x: 2, y: -2)
+                }
+            }
         }
         .menuBarExtraStyle(.window)
 
@@ -47,6 +57,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.coordinator = coordinator
         let panel = FloatPanelController()
         self.panel = panel
+        coordinator.onAudioLevel = { [weak panel] level in panel?.setLevel(level) }
         coordinator.start()
 
         // 事件驱动，不轮询。`objectWillChange` 在属性写入**之前**触发，所以推到

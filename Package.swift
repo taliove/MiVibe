@@ -17,7 +17,8 @@ let package = Package(
         .executableTarget(
             name: "MiVibe",
             dependencies: ["MiVibeCore"],
-            path: "Sources/MiVibe"
+            path: "Sources/MiVibe",
+            resources: [.process("Resources")]
         ),
         // 诊断探针：与应用共享 Core，但独立入口（main.swift 不能和 @main 共存）。
         .executableTarget(
