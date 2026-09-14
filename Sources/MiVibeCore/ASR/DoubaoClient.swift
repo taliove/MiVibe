@@ -26,7 +26,7 @@ public actor DoubaoClient {
         }
     }
 
-    public struct Options {
+    public struct Options: Sendable {
         public init() {}
         public var enableNonstream = true   // 二遍识别，SPEC §4 默认开
         public var enablePunctuation = true
