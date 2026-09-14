@@ -6,19 +6,35 @@
 #
 # 用法：Scripts/build-app.sh [debug|release]
 #
-# 签名：默认 ad-hoc（-s -）。ad-hoc 的签名标识每次重编都变，macOS 会因此反复
-# 要求重新授权辅助功能。想一次授权长期有效，需要一个**固定的自签名身份**：
-#   1. 打开「钥匙串访问」→ 证书助理 → 创建证书
-#   2. 名称 MiVibe Self Signed，身份类型「自签名根」，证书类型「代码签名」
-#   3. 然后 export MIVIBE_SIGN_IDENTITY="MiVibe Self Signed" 再跑本脚本
-# 这一步需要图形界面操作，脚本不代劳。
+# 签名：默认用 `Scripts/setup-signing.sh` 建的本地自签身份。为什么必须是固定身份，
+# 见那支脚本的头部注释——一句话：ad-hoc 签名的 designated requirement 是二进制哈希，
+# 改一行代码就变，macOS 会把重编后的 app 当成陌生程序，反复要授权。
+# 身份不存在时退回 ad-hoc，并把后果明确喊出来。
 
 set -euo pipefail
 
 CONFIG="${1:-release}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP="$ROOT/build/MiVibe.app"
-IDENTITY="${MIVIBE_SIGN_IDENTITY:--}"
+
+SIGNING_KEYCHAIN="$HOME/Library/Keychains/mivibe-signing.keychain-db"
+SIGNING_PASSFILE="$HOME/.config/mivibe/signing-password"
+LOCAL_IDENTITY="MiVibe Local Signing"
+
+# 身份优先级：环境变量 > 本地自签身份 > ad-hoc。
+if [ -n "${MIVIBE_SIGN_IDENTITY:-}" ]; then
+  IDENTITY="$MIVIBE_SIGN_IDENTITY"
+elif [ -f "$SIGNING_KEYCHAIN" ] && [ -f "$SIGNING_PASSFILE" ] \
+     && security find-identity -p codesigning "$SIGNING_KEYCHAIN" 2>/dev/null | grep -q "$LOCAL_IDENTITY"; then
+  IDENTITY="$LOCAL_IDENTITY"
+  # codesign 要用私钥，得先解锁并确保钥匙串在搜索列表里。
+  security unlock-keychain -p "$(cat "$SIGNING_PASSFILE")" "$SIGNING_KEYCHAIN" 2>/dev/null || true
+  if ! security list-keychains -d user | grep -q "mivibe-signing"; then
+    security list-keychains -d user -s "$SIGNING_KEYCHAIN" $(security list-keychains -d user | tr -d ' "')
+  fi
+else
+  IDENTITY="-"
+fi
 
 cd "$ROOT"
 
@@ -33,6 +49,16 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BINARY" "$APP/Contents/MacOS/MiVibe"
 
+# SwiftPM 把 .process("Resources") 打成 MiVibe_MiVibe.bundle 放在可执行文件旁边，
+# 而 .app 的 Bundle.main 找资源要去 Contents/Resources——不拷的话 Mi.png 只能靠
+# 源码目录的硬编码兜底路径加载，换个机器就丢图。
+RESOURCE_BUNDLE="$(dirname "$BINARY")/MiVibe_MiVibe.bundle"
+if [ -d "$RESOURCE_BUNDLE/Contents/Resources" ]; then
+  cp -R "$RESOURCE_BUNDLE/Contents/Resources/" "$APP/Contents/Resources/"
+elif [ -d "$RESOURCE_BUNDLE" ]; then
+  cp -R "$RESOURCE_BUNDLE/" "$APP/Contents/Resources/"
+fi
+
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -46,6 +72,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 	<string>io.github.taliove.mivibe</string>
 	<key>CFBundleExecutable</key>
 	<string>MiVibe</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -73,10 +101,17 @@ echo "▸ 签名（identity: ${IDENTITY}）"
 codesign --force --deep --options runtime --sign "$IDENTITY" "$APP" 2>&1 | sed 's/^/  /'
 codesign --verify --verbose=1 "$APP" 2>&1 | sed 's/^/  /'
 
-if [ "$IDENTITY" = "-" ]; then
+# 把签名身份说清楚：锚在证书上 = 授权能活；锚在 cdhash 上 = 下次重编又要重授权。
+REQ="$(codesign -d -r- "$APP" 2>/dev/null | tail -1)"
+echo "  签名锚点：${REQ#\# }"
+if printf '%s' "$REQ" | grep -q 'cdhash'; then
   echo
-  echo "⚠️  ad-hoc 签名：每次重编都会重新要求授权辅助功能。"
-  echo "   固定身份的做法见本脚本顶部注释。"
+  echo "⚠️  当前是 ad-hoc 签名，designated requirement 锚在二进制哈希上——"
+  echo "   每次重编 macOS 都会当成新 app，重新要一遍辅助功能授权。"
+  echo "   跑一次 Scripts/setup-signing.sh 建个固定的自签身份即可根治。"
+elif [ "$IDENTITY" = "-" ]; then
+  echo
+  echo "⚠️  指定了 ad-hoc 签名（MIVIBE_SIGN_IDENTITY=-），同理会反复要授权。"
 fi
 
 echo
