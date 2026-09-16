@@ -59,6 +59,7 @@ public enum TextInjector {
         guard pid != ProcessInfo.processInfo.processIdentifier else { return nil }
 
         let app = AXUIElementCreateApplication(pid)
+        enableFullAccessibilityIfNeeded(app: app)
         var focused: CFTypeRef?
         guard AXUIElementCopyAttributeValue(app, kAXFocusedUIElementAttribute as CFString, &focused) == .success,
               let element = focused as! AXUIElement?
@@ -73,6 +74,23 @@ public enum TextInjector {
             selectedTextSettable: isSettable(element, kAXSelectedTextAttribute),
             isSecure: subrole.contains("Secure")
         )
+    }
+
+    /// Chromium/Electron 系应用（飞书、Chrome、VS Code 等）默认只建残缺的 AX 树：
+    /// 焦点元素声称 AXSelectedText 可写、set 也返回 success，但 DOM 纹丝不动。
+    /// 设上 AXEnhancedUserInterface 后才建完整树、写入才真实生效——
+    /// Vimac / Homerow 等工具的标准做法。对原生应用设这个属性是无害 no-op。
+    ///
+    /// 注意副作用：首次开启时 Chromium 会重建 AX 树，焦点元素的 identity 会变。
+    /// 所以在取焦点**之前**开，保证按下/注入两次快照看到的是同一棵树。
+    private static func enableFullAccessibilityIfNeeded(app: AXUIElement) {
+        var value: CFTypeRef?
+        let key = "AXEnhancedUserInterface" as CFString
+        if AXUIElementCopyAttributeValue(app, key, &value) == .success,
+           (value as? Bool) == true {
+            return
+        }
+        AXUIElementSetAttributeValue(app, key, true as CFTypeRef)
     }
 
     // MARK: - 注入
@@ -92,11 +110,33 @@ public enum TextInjector {
                 text as CFTypeRef
             )
             guard error == .success else { throw InjectError.axWriteFailed(error) }
-            return .ax(pid: snapshot.pid)
+
+            // Chromium 的假成功：set 返回 success 但 DOM 没变。读回验证——
+            // SPEC §5 禁止的是"无验证的盲目双写"，验证失败才粘贴不会重复输入。
+            if verifyInserted(text, in: snapshot.element) {
+                return .ax(pid: snapshot.pid)
+            }
+            Log.chain.notice("AX write not reflected, falling back to paste")
+            try paste(text, to: snapshot.pid)
+            return .paste(pid: snapshot.pid)
         }
 
         try paste(text, to: snapshot.pid)
         return .paste(pid: snapshot.pid)
+    }
+
+    /// 读回验证：AX 写入的文字是否真的出现在元素内容里。
+    /// Chromium 应用写入到 DOM 反射有一拍延迟，所以重试几次再判失败。
+    private static func verifyInserted(_ text: String, in element: AXUIElement) -> Bool {
+        for attempt in 0..<3 {
+            if attempt > 0 { Thread.sleep(forTimeInterval: 0.1) }
+            var value: CFTypeRef?
+            guard AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &value) == .success,
+                  let content = value as? String
+            else { continue }
+            if content.contains(text) { return true }
+        }
+        return false
     }
 
     /// 系统级 UI（锁屏、登录窗、Spotlight 等）不是有效的输入目标。
