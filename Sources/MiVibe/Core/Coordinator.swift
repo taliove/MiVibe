@@ -60,6 +60,7 @@ final class Coordinator: ObservableObject {
         remote.connect()
         keys.start(takeover: keyTakeover)
         keyTakeoverActive = keys.isExclusive
+        Log.chain.notice("start: takeover=\(self.keyTakeover) exclusive=\(self.keys.isExclusive)")
     }
 
     // MARK: - 遥控器事件
@@ -82,9 +83,13 @@ final class Coordinator: ObservableObject {
             switch queue.startRecording() {
             case .started(let id):
                 activeID = id
-                snapshots[id] = TextInjector.snapshotFocus()
+                let snapshot = TextInjector.snapshotFocus()
+                snapshots[id] = snapshot
+                let frontApp = NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "nil"
+                Log.chain.notice("AUDIO_START id=\(id) snapshot=\(snapshot == nil ? "nil" : "ok", privacy: .public) front=\(frontApp, privacy: .public)")
                 float = .listening
             case .rejectedQueueFull:
+                Log.chain.notice("AUDIO_START rejected: queue full")
                 float = .attention
                 lastMessage = "已有两条未处理，请先处理"
             }
@@ -94,6 +99,7 @@ final class Coordinator: ObservableObject {
             guard let self, let id = activeID else { return }
             activeID = nil
             queue.finishRecording(id: id)
+            Log.chain.notice("AUDIO_STOP id=\(id) pcm=\(recording.pcm.count)B")
             float = .transcribing
             transcribe(id: id, pcm: recording.pcm)
         }
@@ -232,11 +238,13 @@ final class Coordinator: ObservableObject {
             guard let self else { return }
             do {
                 let text = try await asr.transcribe(pcm: pcm, options: options)
+                Log.chain.notice("transcribed id=\(id) chars=\(text.count)")
                 await MainActor.run {
                     self.queue.transcriptionSucceeded(id: id, text: text)
                     self.drain()
                 }
             } catch {
+                Log.chain.error("transcribe failed id=\(id): \(error.localizedDescription)")
                 await MainActor.run {
                     self.queue.transcriptionFailed(id: id)
                     self.float = .attention
@@ -251,6 +259,7 @@ final class Coordinator: ObservableObject {
         guard !queue.hasBlocker, let next = queue.injectable else { return }
 
         guard let saved = snapshots[next.id] else {
+            Log.chain.error("drain id=\(next.id): no snapshot (录制时焦点快照失败) → targetLost")
             queue.targetLost(id: next.id)
             float = .attention
             lastMessage = "目标已失效，请选好输入框后点「输入到这里」"
@@ -259,6 +268,7 @@ final class Coordinator: ObservableObject {
 
         // 注入前重新比对焦点：变了就暂存，绝不强写。
         guard let current = TextInjector.snapshotFocus(), current == saved else {
+            Log.chain.error("drain id=\(next.id): focus changed or snapshot now nil → targetLost")
             queue.targetLost(id: next.id)
             float = .attention
             lastMessage = "焦点已改变，请选好输入框后点「输入到这里」"
@@ -266,13 +276,22 @@ final class Coordinator: ObservableObject {
         }
 
         do {
-            _ = try TextInjector.inject(next.text, into: current)
+            let target = try TextInjector.inject(next.text, into: current)
+            let path: String
+            switch target {
+            case .ax: path = "AX"
+            case .paste: path = "paste"
+            default: path = "?"
+            }
+            let targetApp = NSRunningApplication(processIdentifier: current.pid)?.bundleIdentifier ?? "?"
+            Log.chain.notice("injected id=\(next.id) via \(path, privacy: .public) into \(targetApp, privacy: .public)")
             queue.injected(id: next.id)
             snapshots[next.id] = nil
             float = .inserted
             lastMessage = next.text
             drain()   // 继续下一条
         } catch {
+            Log.chain.error("inject failed id=\(next.id): \(error.localizedDescription)")
             queue.injectionFailed(id: next.id, text: next.text)
             float = .attention
             lastMessage = error.localizedDescription
@@ -284,6 +303,7 @@ final class Coordinator: ObservableObject {
     /// 「输入到这里」：把待处理文字写入当前焦点。
     func resumeHere(id: Int) {
         guard let snapshot = TextInjector.snapshotFocus() else {
+            Log.chain.error("resumeHere id=\(id): snapshotFocus nil（无权限或无焦点元素）")
             lastMessage = "找不到输入焦点"
             return
         }
