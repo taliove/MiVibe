@@ -11,7 +11,6 @@ struct MiVibeApp: App {
     var body: some Scene {
         MenuBarExtra {
             MenuPopover(coordinator: coordinator)
-                .onAppear { AppDelegate.shared.attach(coordinator) }
         } label: {
             // 队列里还有没处理完的内容时挂个角标。浮条超时会自己收起，但内容不会
             // 丢——没有这个角标，用户就无从得知还有文字在等着处理。
@@ -24,6 +23,10 @@ struct MiVibeApp: App {
                         .offset(x: 2, y: -2)
                 }
             }
+            // attach 必须在启动时就发生：它负责连遥控器、启动按键通道、创建浮条。
+            // 原先挂在弹窗的 onAppear 上——用户不点开图标，整条语音链路就是死的。
+            // label 在启动时即渲染，onAppear 随启动触发。
+            .onAppear { AppDelegate.shared.attach(coordinator) }
         }
         .menuBarExtraStyle(.window)
 
