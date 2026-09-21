@@ -27,6 +27,10 @@ public enum Permissions {
     }
 
     /// 输入监控（HID 独占接管需要）。`request: true` 未决定时弹系统提示。
+    ///
+    /// 注意：这个检查返回的是"条目存在且已授予"。系统设置里**条目在但开关关着**
+    /// 的情况下也可能显示已授权——此时独占会被拒（kIOReturnNotPermitted）。
+    /// 以独占是否真拿到为准，这个值只做引导展示。
     public static func hasInputMonitoring() -> Bool {
         IOHIDCheckAccess(kIOHIDRequestTypeListenEvent) == kIOHIDAccessTypeGranted
     }

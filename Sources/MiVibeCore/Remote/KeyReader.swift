@@ -8,11 +8,15 @@ import IOKit.hid
 ///   这里只是旁听，用于返回键取消等动作。
 /// - **接管**（`takeover: true`）：以 `kIOHIDOptionsTypeSeizeDevice` 独占打开，
 ///   系统不再翻译报文，所有按键经 `KeyRouter` 裁决后由 `KeySynth` 重新发出。
-///   独占失败（权限不足/设备已被持有）时自动回退仅监听，并通过
-///   `onTakeoverFailed` 告知——宁可功能降级，不让遥控器彻底失联。
+///
+/// 独占是**持续争取**的，不是启动时一次性裁决：BLE 遥控器的连接晚于 App 启动是
+/// 常态，启动时 `IOHIDManagerCopyDevices` 多半为空。所以设备每次出现（匹配回调）
+/// 都重新尝试 seize，拿到才算数；拿不到之前按键照常仅监听，功能降级但不失联。
 public final class KeyReader {
     public static let vendorID = 0x2717
     public static let productID = 0x32B8
+
+    private static let seizeOptions = IOOptionBits(kIOHIDOptionsTypeSeizeDevice)
 
     /// 实测确认的按键。身份定义在 `RemoteButton`（纯逻辑，可脱离硬件测试）——
     /// 这里只做别名，`KeyReader.Key.up` 这样的写法继续可用。
@@ -23,7 +27,10 @@ public final class KeyReader {
     /// 这个标记是防御性的——路由层靠它保证 ⌘Z 不会连发。
     public var onKey: (@MainActor (Key, Bool, Bool) -> Void)?
 
-    /// 接管（独占）失败回调，参数是给人看的原因说明。失败后已自动回退仅监听。
+    /// 独占状态变化回调（拿到/失去独占时触发，参数为是否已独占）。
+    public var onExclusiveChanged: (@MainActor (Bool) -> Void)?
+
+    /// 接管（独占）硬失败回调（manager 级打开失败，极少见），参数是给人看的原因。
     public var onTakeoverFailed: (@MainActor (String) -> Void)?
 
     /// 当前是否独占着设备。false 时系统仍在处理原生按键，
@@ -31,6 +38,11 @@ public final class KeyReader {
     public private(set) var isExclusive = false
 
     private var manager: IOHIDManager?
+    /// 用户意图：要不要独占。与实际是否拿到（`isExclusive`）分开——
+    /// 设备迟到、被系统暂持都是暂时的，意图不变，持续重试。
+    private var wantExclusive = false
+    /// 已独占成功的设备（按对象身份）。BLE 重连后出现的是新对象，需要重新 seize。
+    private var seizedDevices: [ObjectIdentifier: IOHIDDevice] = [:]
     /// 当前按住的键：同一个键未抬起又收到按下 → isRepeat。
     private var held: Set<RemoteButton> = []
 
@@ -38,6 +50,7 @@ public final class KeyReader {
 
     public func start(takeover: Bool = false) {
         guard manager == nil else { return }
+        wantExclusive = takeover
         held.removeAll()
         let hid = IOHIDManagerCreate(kCFAllocatorDefault, 0)
         IOHIDManagerSetDeviceMatching(hid, [
@@ -52,59 +65,96 @@ public final class KeyReader {
             reader.handle(value)
         }, context)
 
-        // BLE 遥控器的断开重连是日常（SPEC §3）：独占模式下设备重新出现时
-        // 必须重新 seize，否则重连之后按键又回到系统手里。
+        // BLE 遥控器的断开重连是日常（SPEC §3）：设备每次出现都尝试 seize。
         IOHIDManagerRegisterDeviceMatchingCallback(hid, { context, _, _, device in
             guard let context else { return }
             let reader = Unmanaged<KeyReader>.fromOpaque(context).takeUnretainedValue()
-            reader.seizeIfNeeded(device)
+            reader.seize(device)
+        }, context)
+        IOHIDManagerRegisterDeviceRemovalCallback(hid, { context, _, _, device in
+            guard let context else { return }
+            let reader = Unmanaged<KeyReader>.fromOpaque(context).takeUnretainedValue()
+            reader.unseize(device)
         }, context)
 
         IOHIDManagerScheduleWithRunLoop(hid, CFRunLoopGetMain(), CFRunLoopMode.defaultMode.rawValue)
 
-        if takeover {
-            let options = IOOptionBits(kIOHIDOptionsTypeSeizeDevice)
-            let status = IOHIDManagerOpen(hid, options)
-            // 权威判据是逐设备打开：manager 打开成功不代表真拿到了设备（SeizeProbe 结论）。
-            var seized = status == kIOReturnSuccess
-            var found = false
-            if let devices = IOHIDManagerCopyDevices(hid) as? Set<IOHIDDevice>, !devices.isEmpty {
-                found = true
-                for device in devices where IOHIDDeviceOpen(device, options) != kIOReturnSuccess {
-                    seized = false
-                }
-            }
-            if seized && found {
-                isExclusive = true
-            } else {
-                // 回退仅监听：按键还能用于返回键取消，只是映射/转发不生效。
-                isExclusive = false
-                IOHIDManagerClose(hid, options)
-                IOHIDManagerOpen(hid, 0)
-                let reason = found
-                    ? "设备被系统持有或权限不足（需要「输入监控」权限）"
-                    : "未找到遥控器"
-                Task { @MainActor [onTakeoverFailed] in onTakeoverFailed?(reason) }
-            }
-        } else {
+        let options = takeover ? Self.seizeOptions : 0
+        let status = IOHIDManagerOpen(hid, options)
+        if takeover && status != kIOReturnSuccess {
+            // manager 级失败（权限不足等）：退回仅监听。设备到达回调仍会触发重试。
+            IOHIDManagerClose(hid, options)
             IOHIDManagerOpen(hid, 0)
+            let reason = "HID 打开被拒（\(Self.hex(status))，需要「输入监控」权限）"
+            Log.chain.error("takeover failed: \(reason, privacy: .public)")
+            Task { @MainActor [onTakeoverFailed] in onTakeoverFailed?(reason) }
         }
         manager = hid
+        seizeAllMatched()
     }
 
     public func stop() {
         guard let manager else { return }
-        IOHIDManagerClose(manager, isExclusive ? IOOptionBits(kIOHIDOptionsTypeSeizeDevice) : 0)
+        IOHIDManagerClose(manager, wantExclusive ? Self.seizeOptions : 0)
         self.manager = nil
-        isExclusive = false
+        wantExclusive = false
+        seizedDevices.removeAll()
         held.removeAll()
+        if isExclusive {
+            isExclusive = false
+            notifyExclusiveChanged()
+        }
     }
 
-    /// 独占模式下 seize 一个刚出现的设备。仅监听模式什么都不做。
-    private func seizeIfNeeded(_ device: IOHIDDevice) {
-        guard isExclusive else { return }
-        IOHIDDeviceOpen(device, IOOptionBits(kIOHIDOptionsTypeSeizeDevice))
+    // MARK: - 独占管理
+
+    /// 对当前匹配到的所有设备尝试 seize。
+    private func seizeAllMatched() {
+        guard wantExclusive, let manager,
+              let devices = IOHIDManagerCopyDevices(manager) as? Set<IOHIDDevice>
+        else { return }
+        for device in devices { seize(device) }
     }
+
+    private func seize(_ device: IOHIDDevice) {
+        guard wantExclusive else { return }
+        let id = ObjectIdentifier(device)
+        guard seizedDevices[id] == nil else { return }
+        let status = IOHIDDeviceOpen(device, Self.seizeOptions)
+        if status == kIOReturnSuccess {
+            seizedDevices[id] = device
+            Log.chain.notice("seized HID device (\(self.seizedDevices.count) held)")
+        } else {
+            Log.chain.error("seize failed: \(Self.hex(status), privacy: .public)")
+        }
+        updateExclusive()
+    }
+
+    /// IOReturn 是有符号 Int32，`String(radix:)` 对负数会输出 "0x-1ffffd3f" 这种
+    /// 没法查的格式；按位解释为 UInt32 才是文档里的 0xE00002C1。
+    static func hex(_ status: IOReturn) -> String {
+        String(format: "0x%08X", UInt32(bitPattern: status))
+    }
+
+    private func unseize(_ device: IOHIDDevice) {
+        seizedDevices.removeValue(forKey: ObjectIdentifier(device))
+        updateExclusive()
+    }
+
+    private func updateExclusive() {
+        let now = !seizedDevices.isEmpty
+        guard now != isExclusive else { return }
+        isExclusive = now
+        Log.chain.notice("takeover now \(now ? "active" : "inactive", privacy: .public)")
+        notifyExclusiveChanged()
+    }
+
+    private func notifyExclusiveChanged() {
+        let value = isExclusive
+        Task { @MainActor [onExclusiveChanged] in onExclusiveChanged?(value) }
+    }
+
+    // MARK: - 按键事件
 
     private func handle(_ value: IOHIDValue) {
         let element = IOHIDValueGetElement(value)
