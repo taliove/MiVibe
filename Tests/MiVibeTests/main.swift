@@ -9,6 +9,8 @@ DoubaoFrameTests.run()
 InputQueueTests.run()
 AudioLevelTests.run()
 KeyMappingTests.run()
+ModeAndActionTests.run()
+KeywordCorrectionTests.run()
 PendingStoreTests.run()
 
 Harness.finish()

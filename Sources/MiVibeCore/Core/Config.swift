@@ -28,21 +28,40 @@ public enum Config {
         public var keyTakeover: Bool?
         /// 每应用按键映射表。
         public var keyMap: KeyMapTable?
+        /// 识别引擎选择（ASREngine rawValue）。nil = 豆包（老用户升级后行为不变）。
+        public var asrProvider: String?
+        /// 本地识别当前选用的模型 id（须已下载）。
+        public var localModel: String?
+        /// 改写配置（模式 + LLM 服务商）。
+        public var rewrite: RewriteConfig?
+        /// 关键词纠正对照表（识别与改写共用）。
+        public var keywords: [KeywordEntry]?
 
         public init(
             doubaoAPIKey: String? = nil,
             enableNonstream: Bool = true,
             keyTakeover: Bool? = nil,
-            keyMap: KeyMapTable? = nil
+            keyMap: KeyMapTable? = nil,
+            asrProvider: String? = nil,
+            localModel: String? = nil,
+            rewrite: RewriteConfig? = nil,
+            keywords: [KeywordEntry]? = nil
         ) {
             self.doubaoAPIKey = doubaoAPIKey
             self.enableNonstream = enableNonstream
             self.keyTakeover = keyTakeover
             self.keyMap = keyMap
+            self.asrProvider = asrProvider
+            self.localModel = localModel
+            self.rewrite = rewrite
+            self.keywords = keywords
         }
 
         public var effectiveKeyTakeover: Bool { keyTakeover ?? true }
         public var effectiveKeyMap: KeyMapTable { keyMap ?? KeyMapTable() }
+        public var effectiveASRProvider: ASREngine { ASREngine(rawValue: asrProvider ?? "") ?? .doubao }
+        public var effectiveRewrite: RewriteConfig { rewrite ?? RewriteConfig() }
+        public var effectiveKeywords: [KeywordEntry] { keywords ?? [] }
     }
 
     /// 读取配置（不存在时返回默认值）。

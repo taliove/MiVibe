@@ -38,6 +38,12 @@ fi
 
 cd "$ROOT"
 
+# 本地识别引擎的 vendored 源码（不存在时拉取，钉死 SHA256，见脚本头部注释）。
+if [ ! -d "$ROOT/Vendor/whisper.cpp" ]; then
+  echo "▸ 拉取 whisper.cpp 源码"
+  "$ROOT/Scripts/fetch-whisper.sh"
+fi
+
 echo "▸ 编译（${CONFIG}）"
 swift build -c "$CONFIG" --product MiVibe
 
@@ -59,6 +65,18 @@ elif [ -d "$RESOURCE_BUNDLE" ]; then
   cp -R "$RESOURCE_BUNDLE/" "$APP/Contents/Resources/"
 fi
 
+# whisper.cpp 的 Metal 内核是运行时编译的（本机没有 metal 编译器）：ggml 从
+# mainBundle 找 kernels/*.metal 与 flatten 所需的头文件（ggml-common.h、
+# ggml-metal-impl.h 须在 Resources 根，与 kernels/ 平级——flatten 的搜索路径是
+# 内核文件所在目录、其父、其祖父）。
+WHISPER_BUNDLE="$(dirname "$BINARY")/MiVibe_CWhisper.bundle"
+if [ -d "$WHISPER_BUNDLE" ]; then
+  cp -R "$WHISPER_BUNDLE/kernels" "$APP/Contents/Resources/"
+  cp "$WHISPER_BUNDLE/ggml-common.h" "$WHISPER_BUNDLE/ggml-metal-impl.h" "$APP/Contents/Resources/"
+else
+  echo "⚠️  未找到 MiVibe_CWhisper.bundle，本地识别的 Metal 加速将不可用（回落 CPU）"
+fi
+
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -77,9 +95,9 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.1</string>
+	<string>0.2.0</string>
 	<key>CFBundleVersion</key>
-	<string>1</string>
+	<string>3</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>14.0</string>
 	<!-- 菜单栏常驻，不进 Dock、无主窗口 -->

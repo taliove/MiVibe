@@ -1,76 +1,82 @@
 import MiVibeCore
 import SwiftUI
 
-/// 设置页：工具栏四分页 + 分组表单 + 短标签 + 脚注说明（SPEC §7，原型已验收）。
+/// 设置页：工具栏分页 + 分组表单 + 短标签 + 脚注说明（SPEC §7，原型已验收）。
 struct SettingsView: View {
     @ObservedObject var coordinator: Coordinator
-    @State private var apiKeyDraft = ""
-    @State private var saveResult: String?
+    @State var apiKeyDraft = ""
+    @State var saveResult: String?
 
     /// 按键映射页的作用范围：nil = 默认表，否则是应用的 bundle identifier。
-    @State private var mappingScope: String?
+    @State var mappingScope: String?
     /// 遥控器图上选中的按键。
-    @State private var selectedButton: RemoteButton?
+    @State var selectedButton: RemoteButton?
     /// 输入监控权限的展示值。TCC 状态是进程外存储的，只在出现时查一次会显示
     /// 过期结果——所以存进 @State，在窗口出现和 App 重新激活（用户从系统设置
     /// 授权回来）时刷新。
-    @State private var inputMonitoringGranted = false
+    @State var inputMonitoringGranted = false
+
+    // 改写页的草稿状态（LLM 服务商与自定义模式编辑）。
+    @State var llmTemplateID = "custom"
+    @State var llmProtoDraft: LLMProviderConfig.Proto = .openai
+    @State var llmBaseURLDraft = ""
+    @State var llmKeyDraft = ""
+    @State var llmModelDraft = ""
+    /// 非 nil 时显示模式提示词编辑 sheet（内置与自定义模式共用）。
+    @State var modeEditorTarget: ModeEditorTarget?
+
+    /// 关键词纠正的新增草稿（识别 Tab）。
+    @State var keywordFromDraft = ""
+    @State var keywordToDraft = ""
+
+    /// 模式编辑对象：内置模式只调 prompt（存为覆盖），自定义模式名称 prompt 都可改。
+    struct ModeEditorTarget: Identifiable {
+        let mode: RewriteMode
+        let isBuiltin: Bool
+        let hasOverride: Bool
+        var id: String { mode.id }
+    }
 
     var body: some View {
         TabView {
-            asrTab.tabItem { Label("豆包语音", systemImage: "waveform") }
+            recognitionTab.tabItem { Label("识别", systemImage: "waveform") }
+            rewriteTab.tabItem { Label("改写", systemImage: "text.badge.sparkles") }
             remoteTab.tabItem { Label("遥控器", systemImage: "av.remote") }
             keyMappingTab.tabItem { Label("按键映射", systemImage: "keyboard") }
             aboutTab.tabItem { Label("关于", systemImage: "info.circle") }
         }
         .frame(width: 680, height: 640)
-    }
-
-    // MARK: - 豆包语音
-
-    private var asrTab: some View {
-        Form {
-            Section {
-                LabeledContent("API Key:") {
-                    HStack(spacing: 8) {
-                        SecureField("粘贴 API Key", text: $apiKeyDraft)
-                            .labelsHidden()
-                            .textFieldStyle(.roundedBorder)
-                        Button("保存") { saveKey() }
-                            .disabled(apiKeyDraft.isEmpty)
+        .onAppear { loadLLMDrafts() }
+        .sheet(item: $modeEditorTarget) { target in
+            CustomModeEditor(
+                draft: target.mode,
+                title: target.isBuiltin ? "调整提示词：\(target.mode.name)" : nil,
+                nameEditable: !target.isBuiltin,
+                deleteLabel: target.isBuiltin ? "恢复默认" : "删除",
+                onSave: { mode in
+                    if target.isBuiltin {
+                        coordinator.saveBuiltinPrompt(mode.id, prompt: mode.prompt)
+                    } else {
+                        coordinator.saveCustomMode(mode)
                     }
-                }
-                LabeledContent("状态:") {
-                    Text(saveResult ?? (Config.isConfigured ? "已配置" : "未配置"))
-                        .foregroundStyle(Config.isConfigured ? Color.green : Color.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                LabeledContent("二遍识别:") {
-                    Toggle("", isOn: Binding(
-                        get: { coordinator.enableNonstream },
-                        set: { coordinator.enableNonstream = $0 }
-                    ))
-                    .labelsHidden()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            } footer: {
-                Text("Key 存在 ~/.config/mivibe/config.json（明文）。二遍识别换来更准的标点分句，尾延迟约 +0.6s（实测 0.77s）。")
-            }
-
-            Section {
-                LabeledContent("申请 Key:") {
-                    Button("打开语音控制台…") {
-                        NSWorkspace.shared.open(URL(string:
-                            "https://console.volcengine.com/speech/new/setting/apikeys?projectName=default")!)
+                    modeEditorTarget = nil
+                },
+                onDelete: (target.isBuiltin && !target.hasOverride) ? nil : {
+                    if target.isBuiltin {
+                        coordinator.resetBuiltinPrompt(target.mode.id)
+                    } else {
+                        coordinator.deleteCustomMode(target.mode.id)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            }
+                    modeEditorTarget = nil
+                },
+                onCancel: { modeEditorTarget = nil }
+            )
         }
-        .formStyle(.grouped)
     }
 
-    private func saveKey() {
+    // MARK: - 豆包 Key 保存（识别 Tab 使用）
+
+    func saveKey() {
         do {
             var cfg = Config.load()
             cfg.doubaoAPIKey = apiKeyDraft
@@ -203,13 +209,17 @@ struct SettingsView: View {
                         if !coordinator.keyTakeoverActive {
                             Button("重试") { coordinator.retryTakeover() }
                                 .controlSize(.small)
+                            Button("去授权…") { Permissions.openInputMonitoringSettings() }
+                                .controlSize(.small)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
         } footer: {
-            Text("接管后遥控器所有按键由 MiVibe 处置：映射键合成快捷键，未映射的键原样转发，语音键保留按住说话。关闭则系统恢复原生处理（只剩返回键取消录音）。")
+            Text(coordinator.keyTakeover && !coordinator.keyTakeoverActive
+                 ? "接管后遥控器所有按键由 MiVibe 处置。注意：「输入监控」条目在但开关关着时这里也会显示已授权——独占被拒请到系统设置把 MiVibe 的开关关掉再打开，App 激活时会自动重试接管。"
+                 : "接管后遥控器所有按键由 MiVibe 处置：映射键合成快捷键，未映射的键原样转发，语音键保留按住说话。关闭则系统恢复原生处理（只剩返回键取消录音）。")
         }
     }
 
@@ -286,12 +296,30 @@ struct SettingsView: View {
             if let button = selectedButton {
                 LabeledContent("\(button.displayName)键:") {
                     HStack(spacing: 8) {
-                        ShortcutRecorder(shortcut: effectiveMapping[button]) { shortcut in
-                            coordinator.setShortcut(shortcut, for: button, in: mappingScope)
-                        }
-                        if effectiveMapping[button] != nil {
+                        if let action = effectiveMapping[action: button] {
+                            // 已绑定应用内动作：与快捷键互斥（见 AppMapping）。
+                            Text("应用内动作：\(action.displayName)")
+                                .frame(maxWidth: .infinity, alignment: .leading)
                             Button("清除") {
-                                coordinator.setShortcut(nil, for: button, in: mappingScope)
+                                coordinator.setAction(nil, for: button, in: mappingScope)
+                            }
+                            .controlSize(.small)
+                        } else {
+                            ShortcutRecorder(shortcut: effectiveMapping[button]) { shortcut in
+                                coordinator.setShortcut(shortcut, for: button, in: mappingScope)
+                            }
+                            if effectiveMapping[button] != nil {
+                                Button("清除") {
+                                    coordinator.setShortcut(nil, for: button, in: mappingScope)
+                                }
+                                .controlSize(.small)
+                            }
+                            Menu("设为动作…") {
+                                ForEach(RemoteAction.allCases, id: \.self) { action in
+                                    Button(action.displayName) {
+                                        coordinator.setAction(action, for: button, in: mappingScope)
+                                    }
+                                }
                             }
                             .controlSize(.small)
                         }
@@ -303,11 +331,12 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
-            if !effectiveMapping.shortcuts.isEmpty {
+            if !effectiveMapping.shortcuts.isEmpty || !effectiveMapping.actions.isEmpty {
                 Divider().padding(.vertical, 2)
-                ForEach(RemoteButton.mappable.filter { effectiveMapping[$0] != nil }, id: \.id) { button in
+                ForEach(RemoteButton.mappable.filter { effectiveMapping[$0] != nil || effectiveMapping[action: $0] != nil }, id: \.id) { button in
                     LabeledContent("\(button.displayName):") {
-                        Text(effectiveMapping[button]?.display ?? "")
+                        Text(effectiveMapping[action: button].map { "动作：\($0.displayName)" }
+                             ?? effectiveMapping[button]?.display ?? "")
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .contentShape(Rectangle())
@@ -315,8 +344,16 @@ struct SettingsView: View {
                 }
             }
         } footer: {
-            Text("录音/转写进行中，返回键优先用于取消，不触发映射。未映射的键保持系统原生行为。")
+            Text("录音/转写进行中，返回键优先用于取消，不触发映射。未映射的键保持系统原生行为。应用内动作触发 MiVibe 自身功能（如改写模式选单），不发送键盘事件。")
         }
+    }
+
+    /// 版本号读 bundle，不手写——手写的一定会过期。
+    private static var versionString: String {
+        let info = Bundle.main.infoDictionary
+        let version = info?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = info?["CFBundleVersion"] as? String ?? "?"
+        return "\(version) (\(build))"
     }
 
     // MARK: - 应用解析
@@ -349,7 +386,8 @@ struct SettingsView: View {
         Form {
             Section {
                 LabeledContent("MiVibe:") {
-                    Text("第一版").frame(maxWidth: .infinity, alignment: .leading)
+                    Text("v\(Self.versionString)")
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 LabeledContent("用法:") {
                     Text("按住遥控器语音键说话，松开即写入当前输入框")

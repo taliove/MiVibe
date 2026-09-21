@@ -36,12 +36,19 @@ public actor DoubaoClient {
 
     public init() {}
 
+    /// 协议入口（`ASRProvider.transcribe(pcm:)`）使用的选项。Coordinator 按设置页
+    /// 的开关维护它；带 `options:` 的完整入口保留给诊断探针等需要显式控制的调用方。
+    public var providerOptions = Options()
+
     private var task: URLSessionWebSocketTask?
     private var sequence: Int32 = 1
     /// 诊断用：打印每个下行帧的帧头。
     public var verbose = false
 
     public func setVerbose(_ on: Bool) { verbose = on }
+
+    /// 更新协议入口使用的选项（Coordinator 在发起转写前同步设置页的开关）。
+    public func setProviderOptions(_ options: Options) { providerOptions = options }
 
     /// 一次性转写：给定完整 PCM，返回最终文本。
     ///

@@ -51,6 +51,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+
+        // 调试构建（从 .build 裸跑，不是 .app）时给 ggml 指 Metal 内核源码的位置——
+        // 打包后内核在 Contents/Resources/kernels/，靠 mainBundle 找到，不需要这个。
+        #if DEBUG
+        if Bundle.main.bundleURL.pathExtension != "app" {
+            setenv("GGML_METAL_PATH_RESOURCES",
+                   URL(fileURLWithPath: #filePath)
+                       .deletingLastPathComponent()  // UI
+                       .deletingLastPathComponent()  // MiVibe
+                       .deletingLastPathComponent()  // Sources
+                       .deletingLastPathComponent()  // 仓库根
+                       .appendingPathComponent("Vendor/whisper.cpp/ggml/src/ggml-metal").path, 1)
+        }
+        #endif
     }
 
     /// 挂上协调器并开始驱动浮条。多次调用只生效一次。
@@ -71,6 +85,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .sink { [weak self, weak coordinator] _ in
                 guard let self, let coordinator else { return }
                 self.panel?.update(state: coordinator.float, message: coordinator.lastMessage)
+                self.panel?.update(picker: coordinator.picker)
             }
     }
 }

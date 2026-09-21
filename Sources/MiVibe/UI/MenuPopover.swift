@@ -33,12 +33,46 @@ struct MenuPopover: View {
     // MARK: - 分段
 
     private var header: some View {
-        HStack(spacing: 8) {
-            Image(systemName: coordinator.link.icon)
-                .foregroundStyle(coordinator.link.color)
-            Text(coordinator.link.rawValue)
-                .font(.headline)
-            Spacer()
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: coordinator.link.icon)
+                    .foregroundStyle(coordinator.link.color)
+                Text(coordinator.link.rawValue)
+                    .font(.headline)
+                Spacer()
+            }
+            HStack(spacing: 8) {
+                Text("识别引擎")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Menu {
+                    ForEach(ASREngine.allCases, id: \.self) { engine in
+                        Button {
+                            coordinator.setASREngine(engine)
+                        } label: {
+                            if engine == coordinator.asrEngine {
+                                Label(engine.displayName, systemImage: "checkmark")
+                            } else {
+                                Text(engine.displayName)
+                            }
+                        }
+                    }
+                } label: {
+                    Text(coordinator.asrEngine.displayName)
+                }
+                .controlSize(.small)
+                .help("点击切换识别引擎")
+            }
+            HStack(spacing: 8) {
+                Text("改写模式")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button(coordinator.currentModeName) { coordinator.cycleMode() }
+                    .controlSize(.small)
+                    .help("点击切换到下一个模式；遥控器菜单键可呼出选单")
+            }
         }
     }
 

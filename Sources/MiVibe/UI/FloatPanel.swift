@@ -13,6 +13,8 @@ import SwiftUI
 final class FloatPanelModel: ObservableObject {
     @Published var state: FloatState?
     @Published var message: String = ""
+    /// 非 nil 时浮条渲染改写模式选单（优先级高于状态横条）。
+    @Published var picker: Coordinator.ModePickerState?
 }
 
 /// 实时音量电平 0…1（高频，约 66 Hz），只被球观察。
@@ -97,23 +99,41 @@ final class FloatPanelController {
         model.message = message
 
         guard let state else {
-            panel.orderOut(nil)
+            if model.picker == nil { panel.orderOut(nil) }
             return
         }
 
-        panel.positionBottomCenter()
-        panel.orderFrontRegardless()
+        showPanel()
 
-        // 已输入是一次完成，2 秒收起；需处理要等用户动手，30 秒后收起（超时后菜单栏
-        // 图标仍带角标，内容不会丢）。听音与转写期间不自动消失。
+        // 已输入/提示是一次完成，2 秒收起；需处理要等用户动手，30 秒后收起（超时后
+        // 菜单栏图标仍带角标，内容不会丢）。听音/转写/改写期间不自动消失。
         switch state {
-        case .inserted:
+        case .inserted, .notice:
             scheduleHide(after: 2.0)
         case .attention:
             scheduleHide(after: 30.0)
-        case .listening, .transcribing:
+        case .listening, .transcribing, .polishing:
             break
         }
+    }
+
+    /// 模式选单开合。打开时浮条切换为选单界面（自动隐藏计时交给 Coordinator：
+    /// 选单的 6 秒无操作关闭由那边统一管理）。
+    func update(picker: Coordinator.ModePickerState?) {
+        model.picker = picker
+        if picker != nil {
+            showPanel()
+        } else if model.state == nil || dismissed {
+            panel.orderOut(nil)
+        }
+    }
+
+    private func showPanel() {
+        // 选单比状态横条高：按条目数撑开。
+        let height: CGFloat = model.picker.map { CGFloat($0.items.count) * 34 + 44 } ?? 56
+        panel.setContentSize(NSSize(width: 560, height: height))
+        panel.positionBottomCenter()
+        panel.orderFrontRegardless()
     }
 
     private func scheduleHide(after seconds: TimeInterval) {
@@ -137,24 +157,30 @@ struct FloatBarView: View {
     private var state: FloatState { model.state ?? .listening }
 
     var body: some View {
-        HStack(spacing: 12) {
-            StatusBall(state: state, level: level.level, reduceMotion: reduceMotion)
-                .frame(width: 40, height: 40)
+        Group {
+            if let picker = model.picker {
+                ModePickerView(picker: picker)
+            } else {
+                HStack(spacing: 12) {
+                    StatusBall(state: state, level: level.level, reduceMotion: reduceMotion)
+                        .frame(width: 40, height: 40)
 
-            Text(state.label)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(.white)
+                    Text(state.label)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.white)
 
-            Text(detail)
-                .font(.system(size: 13))
-                .foregroundStyle(Color(white: 0.84))
-                .lineLimit(1)
-                .truncationMode(.tail)
+                    Text(detail)
+                        .font(.system(size: 13))
+                        .foregroundStyle(Color(white: 0.84))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
 
-            Spacer(minLength: 0)
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 14)
+                .frame(width: 560, height: 56)
+            }
         }
-        .padding(.horizontal, 14)
-        .frame(width: 560, height: 56)
         .background(.black.opacity(0.86), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .shadow(color: .black.opacity(0.28), radius: 18, y: 8)
     }
@@ -163,6 +189,38 @@ struct FloatBarView: View {
     private var detail: String {
         if state == .inserted || model.message.isEmpty { return state.hint }
         return model.message
+    }
+}
+
+/// 改写模式选单：↑↓ 移动、确认选定、返回关闭。遥控器专属界面，浮条不抢焦点，
+/// 所以这里没有任何可点元素——导航全部由按键路由完成。
+private struct ModePickerView: View {
+    let picker: Coordinator.ModePickerState
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(picker.items.enumerated()), id: \.element.id) { index, item in
+                HStack(spacing: 8) {
+                    Image(systemName: index == picker.highlight ? "checkmark.circle.fill" : "circle")
+                        .foregroundStyle(index == picker.highlight ? .white : Color(white: 0.45))
+                        .font(.system(size: 13))
+                    Text(item.name)
+                        .font(.system(size: 14, weight: index == picker.highlight ? .semibold : .regular))
+                        .foregroundStyle(index == picker.highlight ? .white : Color(white: 0.75))
+                    Spacer()
+                }
+                .padding(.horizontal, 14)
+                .frame(height: 34)
+                .background(index == picker.highlight ? Color.white.opacity(0.14) : .clear)
+            }
+            Text("↑↓ 选择 · 确认键切换 · 返回键关闭")
+                .font(.system(size: 11))
+                .foregroundStyle(Color(white: 0.55))
+                .padding(.horizontal, 14)
+                .frame(height: 28)
+        }
+        .padding(.vertical, 8)
+        .frame(width: 560)
     }
 }
 
@@ -194,9 +252,9 @@ struct StatusBall: View {
                 switch state {
                 case .listening:
                     ListeningBall(color: state.color, level: level, time: time)
-                case .transcribing:
+                case .transcribing, .polishing:
                     TranscribingBall(color: state.color, time: time)
-                case .inserted:
+                case .inserted, .notice:
                     InsertedBall(color: state.color)
                 case .attention:
                     AttentionBall(color: state.color, time: time)

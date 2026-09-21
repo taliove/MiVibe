@@ -11,6 +11,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # whisper.cpp 源码不进仓库（Vendor/ 被 gitignore），构建前先拉取。
+      - name: Fetch whisper.cpp
+        run: Scripts/fetch-whisper.sh
+
       - name: Build
         run: swift build
 
