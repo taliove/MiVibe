@@ -19,7 +19,7 @@ final class Coordinator: ObservableObject {
     var enableNonstream: Bool
 
     /// 每应用按键映射表（含默认兜底）。设置页直接改它，改动即持久化。
-    /// 启动时 `pruned()`：老配置里可能有已删除的按键名。
+    /// 启动时 `normalized()`：清死键，并把旧版整表克隆配置迁移为覆盖表（继承模型）。
     @Published private(set) var keyMap: KeyMapTable
 
     /// 是否独占接管遥控器按键。关掉时 `KeyReader` 退回仅监听，
@@ -29,6 +29,10 @@ final class Coordinator: ObservableObject {
     /// 接管是否真的拿到了设备。用户开着开关但独占失败（权限不足/设备被持有）
     /// 时两者不一致——设置页据此显示"未生效"并提供重试入口。
     @Published private(set) var keyTakeoverActive = false
+
+    /// 当前按住的遥控器按键（设置页映射图「按下即亮」回显）。按下置位、抬起清除；
+    /// 仅监听模式下事件照常上报，回显不依赖独占是否成功。
+    @Published private(set) var pressedButton: RemoteButton?
 
     // MARK: - 识别引擎
 
@@ -76,6 +80,10 @@ final class Coordinator: ObservableObject {
     /// 音频只在按住期间流出，所以这个回调也只在听音态触发。
     var onAudioLevel: ((Double) -> Void)?
 
+    /// 最近一次收到音频帧的时间（听音态）。设置页「链路自检」用它判断
+    /// 音频通道是否真的通了。
+    @Published private(set) var lastAudioFrameAt: Date?
+
     private let remote = RemoteManager()
     private let keys = KeyReader()
     private var meter = AudioLevelMeter()
@@ -100,7 +108,7 @@ final class Coordinator: ObservableObject {
 
     init() {
         let config = Config.load()
-        keyMap = config.effectiveKeyMap.pruned()
+        keyMap = config.effectiveKeyMap.normalized()
         keyTakeover = config.effectiveKeyTakeover
         asrEngine = config.effectiveASRProvider
         localModelID = config.localModel
@@ -194,6 +202,7 @@ final class Coordinator: ObservableObject {
         // 只在听音态转发——队列满被拒时浮条显示的是"需处理"，此时不该再驱动球。
         remote.onAudioChunk = { [weak self] pcm in
             guard let self, float == .listening else { return }
+            lastAudioFrameAt = Date()
             onAudioLevel?(meter.push(pcm: pcm))
         }
     }
@@ -218,6 +227,12 @@ final class Coordinator: ObservableObject {
 
         keys.onKey = { [weak self] key, isDown, isRepeat in
             guard let self else { return }
+            // 按下即亮：先更新回显，再走路由。自动重复不重复置位（值不变，无开销）。
+            if isDown {
+                pressedButton = key
+            } else if pressedButton == key {
+                pressedButton = nil
+            }
             if keys.isExclusive {
                 route(key, isDown: isDown, isRepeat: isRepeat)
             } else {
@@ -453,13 +468,42 @@ final class Coordinator: ObservableObject {
         mutateKeyMap { $0.updateMapping(forBundleID: bundleID) { $0[action: button] = action } }
     }
 
-    /// 套用预设：把预设里的键写进指定作用范围（合并，不清掉用户已配的其它键）。
-    func applyPreset(_ preset: KeyMapPreset, to bundleID: String?) {
-        mutateKeyMap {
-            $0.updateMapping(forBundleID: bundleID) { mapping in
-                for (key, value) in preset.shortcuts { mapping.shortcuts[key] = value }
+    /// 套用预设：把预设里的键写进指定作用范围，并留存快照供「撤销本次套用」。
+    /// `onlyFillEmpty` = true 时只写生效表里没有绑定的键（继承来的也算占用）。
+    func applyPreset(_ preset: KeyMapPreset, to bundleID: String?, onlyFillEmpty: Bool) {
+        var table = keyMap
+        let previous = table.applying(preset, forBundleID: bundleID, onlyFillEmpty: onlyFillEmpty)
+        keyMap = table
+        presetUndo = PresetUndo(presetName: preset.name, scope: bundleID, previous: previous)
+        persist()
+    }
+
+    /// 一次预设套用的撤销信息。会话内有效，不落盘。
+    struct PresetUndo {
+        let presetName: String
+        let scope: String?
+        /// 套用前该作用范围的原始表；nil 表示当时该应用还没有覆盖表（撤销 = 移除整个配置）。
+        let previous: AppMapping?
+    }
+
+    /// 非 nil 时设置页显示「撤销本次套用」。
+    @Published private(set) var presetUndo: PresetUndo?
+
+    /// 撤销上一次预设套用，恢复该作用范围原先的表。
+    func undoPresetApply() {
+        guard let undo = presetUndo else { return }
+        mutateKeyMap { table in
+            if let scope = undo.scope {
+                if let previous = undo.previous {
+                    table.setMapping(previous, forBundleID: scope)
+                } else {
+                    table.removeMapping(forBundleID: scope)
+                }
+            } else if let previous = undo.previous {
+                table.defaultMapping = previous
             }
         }
+        presetUndo = nil
     }
 
     /// 确保某应用有专用映射（没有就以默认表为底克隆一份）。设置页「添加应用」用。

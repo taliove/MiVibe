@@ -12,7 +12,11 @@ enum KeyMappingTests {
         shortcutDisplay()
         shortcutFlagConversion()
         mappingResolution()
-        updateMappingCloning()
+        bindingSource()
+        updateMappingOverrides()
+        mergeMutex()
+        startupNormalization()
+        presetApplying()
         codableRoundTrip()
         presetShape()
         passthroughCoverage()
@@ -104,19 +108,19 @@ enum KeyMappingTests {
     // MARK: - 映射解析
 
     static func mappingResolution() {
-        Harness.suite("映射解析：应用专用表整体替换默认表") {
+        Harness.suite("映射解析：应用专用表按键覆盖，其余继承默认表") {
             var table = KeyMapTable()
             table.defaultMapping[.confirm] = Shortcut(keyCode: 0x24)
             table.defaultMapping[.up] = Shortcut(keyCode: 0x7E)
 
-            var appMapping = AppMapping()
-            appMapping[.confirm] = Shortcut(keyCode: 0x4C)   // 该应用里改成小键盘回车
-            table.setMapping(appMapping, forBundleID: "com.example.editor")
+            var overrides = AppMapping()
+            overrides[.confirm] = Shortcut(keyCode: 0x4C)   // 该应用里改成小键盘回车
+            table.setMapping(overrides, forBundleID: "com.example.editor")
 
-            // 应用专用表命中，且是**整体替换**——默认表里的上键在这里不存在。
+            // 应用专用表命中：覆盖的键用自己的，没覆盖的继承默认表。
             let inApp = table.mapping(forBundleID: "com.example.editor")
-            Harness.expectEqual(inApp[.confirm]?.keyCode, 0x4C, "应用专用表生效")
-            Harness.expectEqual(inApp[.up], nil, "应用专用表不继承默认表的其它键")
+            Harness.expectEqual(inApp[.confirm]?.keyCode, 0x4C, "覆盖的键用应用自己的绑定")
+            Harness.expectEqual(inApp[.up]?.keyCode, 0x7E, "未覆盖的键继承默认表")
 
             // 未列出的应用走默认表。
             let other = table.mapping(forBundleID: "com.example.other")
@@ -131,6 +135,10 @@ enum KeyMappingTests {
             )
 
             Harness.expect(table.hasMapping(forBundleID: "com.example.editor"), "查得到已配的应用")
+            Harness.expectEqual(
+                table.overrideCount(forBundleID: "com.example.editor"), 1,
+                "覆盖数只算真覆盖的键"
+            )
             table.removeMapping(forBundleID: "com.example.editor")
             Harness.expect(
                 !table.hasMapping(forBundleID: "com.example.editor"),
@@ -144,43 +152,231 @@ enum KeyMappingTests {
         }
     }
 
-    /// `updateMapping` 是设置页的编辑入口：首次编辑某应用时克隆默认表，
-    /// 之后两张表互不相干——"继承"只发生在编辑这一刻。
-    static func updateMappingCloning() {
-        Harness.suite("编辑入口：首次编辑克隆默认表，之后互不相干") {
+    /// `bindingSource` 是设置页给遥控器按键打标记的来源查询：四种取值（未绑定 /
+    /// 本范围自有 / 继承默认 / 应用覆盖）× 快捷键与动作两种目标都要钉死。
+    static func bindingSource() {
+        Harness.suite("绑定来源：own / inherited / overridden / unbound") {
+            // 默认作用范围（bundleID = nil）只可能出现 own / unbound。
+            var table = KeyMapTable()
+            table.defaultMapping[.confirm] = Shortcut(keyCode: 0x24)
+            table.defaultMapping[action: .back] = .openModePicker
+            Harness.expectEqual(
+                table.bindingSource(of: .confirm, forBundleID: nil), .own,
+                "默认表有快捷键 → own"
+            )
+            Harness.expectEqual(
+                table.bindingSource(of: .back, forBundleID: nil), .own,
+                "默认表有动作 → own"
+            )
+            Harness.expectEqual(
+                table.bindingSource(of: .up, forBundleID: nil), .unbound,
+                "默认表没有的键 → unbound"
+            )
+
+            // 应用有覆盖表：覆盖的键（快捷键与动作都算）为 overridden，其余继承。
+            table.updateMapping(forBundleID: "com.example.app") { mapping in
+                mapping[.confirm] = Shortcut(keyCode: 0x4C)
+            }
+            Harness.expectEqual(
+                table.bindingSource(of: .confirm, forBundleID: "com.example.app"), .overridden,
+                "覆盖表里有快捷键 → overridden"
+            )
+            Harness.expectEqual(
+                table.bindingSource(of: .back, forBundleID: "com.example.app"), .inherited,
+                "覆盖表没有、默认表有 → inherited"
+            )
+            Harness.expectEqual(
+                table.bindingSource(of: .up, forBundleID: "com.example.app"), .unbound,
+                "两边都没有 → unbound"
+            )
+
+            // 覆盖目标是动作时同样算 overridden。
+            table.updateMapping(forBundleID: "com.example.app") { mapping in
+                mapping[action: .up] = .openModePicker
+            }
+            Harness.expectEqual(
+                table.bindingSource(of: .up, forBundleID: "com.example.app"), .overridden,
+                "覆盖表里有动作 → overridden"
+            )
+
+            // 应用没有覆盖表时等价于空覆盖表：全继承或完全未绑定。
+            Harness.expectEqual(
+                table.bindingSource(of: .back, forBundleID: "com.example.other"), .inherited,
+                "无覆盖表的应用 → inherited"
+            )
+            Harness.expectEqual(
+                table.bindingSource(of: .left, forBundleID: "com.example.other"), .unbound,
+                "无覆盖表且默认表也没有 → unbound"
+            )
+        }
+    }
+
+    /// `updateMapping` 是设置页的编辑入口：应用范围只写覆盖（不克隆默认表），
+    /// 默认表之后的改动对未覆盖的键照常生效。
+    static func updateMappingOverrides() {
+        Harness.suite("编辑入口：应用范围只写覆盖，跟随默认表") {
             var table = KeyMapTable()
             table.defaultMapping[.confirm] = Shortcut(keyCode: 0x24)
 
-            // 首次编辑应用：克隆默认表作为底，再应用改动。
+            // 首次编辑应用：只把这条改动写进覆盖表，不克隆默认表。
             table.updateMapping(forBundleID: "com.example.app") { mapping in
                 mapping[.back] = Shortcut(keyCode: 0x35)
             }
             let app = table.mapping(forBundleID: "com.example.app")
-            Harness.expectEqual(app[.back]?.keyCode, 0x35, "新配的键在")
-            Harness.expectEqual(app[.confirm]?.keyCode, 0x24, "默认表的键被克隆进来")
+            Harness.expectEqual(app[.back]?.keyCode, 0x35, "新配的覆盖键在")
+            Harness.expectEqual(app[.confirm]?.keyCode, 0x24, "默认表的键自动继承")
             Harness.expect(table.hasMapping(forBundleID: "com.example.app"), "产生了专用表")
+            Harness.expectEqual(
+                table.perApp["com.example.app"]?.shortcuts.count, 1,
+                "覆盖表只存真覆盖的那一条"
+            )
 
             // 默认表没被连带改动。
             Harness.expectEqual(table.defaultMapping[.back], nil, "默认表不受影响")
 
-            // 之后再改默认表，已存在的专用表不跟着动。
+            // 之后再改默认表，未覆盖的键跟着生效。
             table.updateMapping(forBundleID: nil) { mapping in
                 mapping[.down] = Shortcut(keyCode: 0x79)
             }
             Harness.expectEqual(table.defaultMapping[.down]?.keyCode, 0x79, "默认表改成功")
             Harness.expectEqual(
-                table.mapping(forBundleID: "com.example.app")[.down], nil,
-                "专用表不跟着默认表动"
+                table.mapping(forBundleID: "com.example.app")[.down]?.keyCode, 0x79,
+                "默认表的改动对未覆盖键生效"
             )
 
-            // 清除键也走同一入口：nil 表示删掉这条映射。
+            // 覆盖优先于继承。
             table.updateMapping(forBundleID: "com.example.app") { mapping in
-                mapping[.back] = nil
+                mapping[.down] = Shortcut(keyCode: 0x74)
             }
             Harness.expectEqual(
-                table.mapping(forBundleID: "com.example.app")[.back], nil,
-                "清除后该键不再有映射"
+                table.mapping(forBundleID: "com.example.app")[.down]?.keyCode, 0x74,
+                "覆盖键用自己的绑定"
             )
+
+            // 清除覆盖 = 回到继承，且覆盖表里的冗余条目被收走。
+            table.updateMapping(forBundleID: "com.example.app") { mapping in
+                mapping[.down] = nil
+            }
+            Harness.expectEqual(
+                table.mapping(forBundleID: "com.example.app")[.down]?.keyCode, 0x79,
+                "清除覆盖后回落到默认表"
+            )
+            Harness.expectEqual(
+                table.perApp["com.example.app"]?[.down], nil,
+                "覆盖表不再持有该键"
+            )
+
+            // 写入与默认表一致的绑定属于冗余，立即收回继承（覆盖数因此永远准确）。
+            table.updateMapping(forBundleID: "com.example.app") { mapping in
+                mapping[.confirm] = Shortcut(keyCode: 0x24)
+            }
+            Harness.expectEqual(
+                table.perApp["com.example.app"]?[.confirm], nil,
+                "与默认表一致的写入不形成覆盖"
+            )
+        }
+    }
+
+    /// 合并时快捷键与应用内动作互斥：覆盖侧是什么，生效侧就是什么。
+    static func mergeMutex() {
+        Harness.suite("合并互斥：覆盖动作顶掉默认快捷键") {
+            var table = KeyMapTable()
+            table.defaultMapping[.menu] = Shortcut(keyCode: 0x24)
+            table.updateMapping(forBundleID: "com.example.app") { mapping in
+                mapping[action: .menu] = .openModePicker
+            }
+            let merged = table.mapping(forBundleID: "com.example.app")
+            Harness.expectEqual(merged[.menu], nil, "默认快捷键被覆盖动作顶掉")
+            Harness.expectEqual(merged[action: .menu], .openModePicker, "覆盖动作生效")
+        }
+    }
+
+    /// 老版本的应用专用表是默认表的整表克隆。启动整理（`normalized`）逐条比对：
+    /// 与默认表一致的收回继承，真改过的保留为覆盖——生效行为不变，但配置变成继承语义。
+    static func startupNormalization() {
+        Harness.suite("启动整理：旧克隆配置迁移为覆盖") {
+            var table = KeyMapTable()
+            table.defaultMapping[.confirm] = Shortcut(keyCode: 0x24)
+            table.defaultMapping[.up] = Shortcut(keyCode: 0x7E)
+            var legacy = AppMapping()
+            legacy[.confirm] = Shortcut(keyCode: 0x24)   // 与默认一致（克隆残留）
+            legacy[.up] = Shortcut(keyCode: 0x74)        // 用户真改过
+            table.setMapping(legacy, forBundleID: "com.example.app")
+
+            let normalized = table.normalized()
+            Harness.expectEqual(
+                normalized.perApp["com.example.app"]?[.confirm], nil,
+                "与默认一致的条目被收回继承"
+            )
+            Harness.expectEqual(
+                normalized.perApp["com.example.app"]?[.up]?.keyCode, 0x74,
+                "真覆盖保留"
+            )
+            Harness.expectEqual(
+                normalized.overrideCount(forBundleID: "com.example.app"), 1,
+                "迁移后覆盖数只剩真覆盖"
+            )
+            Harness.expectEqual(
+                normalized.mapping(forBundleID: "com.example.app")[.confirm]?.keyCode, 0x24,
+                "整理不改变生效行为（继承回默认）"
+            )
+            Harness.expectEqual(
+                normalized.mapping(forBundleID: "com.example.app")[.up]?.keyCode, 0x74,
+                "整理不改变生效行为（覆盖仍生效）"
+            )
+            Harness.expect(
+                normalized.hasMapping(forBundleID: "com.example.app"),
+                "应用配置仍在场景配置列表里"
+            )
+
+            // 死键照例被清掉。
+            var dirty = table
+            dirty.perApp["com.example.app"]?.shortcuts["不存在的键"] = Shortcut(keyCode: 0x24)
+            Harness.expectEqual(
+                dirty.normalized().perApp["com.example.app"]?.shortcuts["不存在的键"], nil,
+                "已删除的按键名被清理"
+            )
+        }
+    }
+
+    /// `applying` 是预设套用的纯逻辑：覆盖模式整键替换，填空位模式跳过已有绑定
+    /// （继承来的也算占用），并返回套用前的表供撤销。
+    static func presetApplying() {
+        Harness.suite("预设套用：填空位 / 覆盖 / 撤销快照") {
+            // 覆盖模式：整键替换。
+            var table = KeyMapTable()
+            table.defaultMapping[.confirm] = Shortcut(keyCode: 0x4C)
+            let previous = table.applying(.codingAssistant, forBundleID: nil, onlyFillEmpty: false)
+            Harness.expectEqual(table.defaultMapping[.confirm]?.keyCode, 0x24, "覆盖模式替换已有绑定")
+            Harness.expectEqual(previous?[.confirm]?.keyCode, 0x4C, "返回套用前的表供撤销")
+
+            // 填空位：已有绑定不动，空位填上。
+            var fill = KeyMapTable()
+            fill.defaultMapping[.confirm] = Shortcut(keyCode: 0x4C)
+            _ = fill.applying(.codingAssistant, forBundleID: nil, onlyFillEmpty: true)
+            Harness.expectEqual(fill.defaultMapping[.confirm]?.keyCode, 0x4C, "填空位不动已有绑定")
+            Harness.expectEqual(fill.defaultMapping[.back]?.keyCode, 0x35, "空位被填上")
+
+            // 填空位在应用范围：继承来的绑定也算占用，不写进覆盖表。
+            var inherited = KeyMapTable()
+            inherited.defaultMapping[.confirm] = Shortcut(keyCode: 0x4C)
+            let appPrevious = inherited.applying(.codingAssistant, forBundleID: "com.example.app", onlyFillEmpty: true)
+            Harness.expectEqual(appPrevious, nil, "套用前该应用没有覆盖表（撤销 = 移除整个配置）")
+            Harness.expectEqual(
+                inherited.perApp["com.example.app"]?[.confirm], nil,
+                "继承的绑定算占用，不形成覆盖"
+            )
+            Harness.expectEqual(
+                inherited.perApp["com.example.app"]?[.back]?.keyCode, 0x35,
+                "真空位写进覆盖表"
+            )
+
+            // 套用快捷键会顶掉同键的应用内动作（互斥）。
+            var mutex = KeyMapTable()
+            mutex.defaultMapping[action: .back] = .openModePicker
+            _ = mutex.applying(.codingAssistant, forBundleID: nil, onlyFillEmpty: false)
+            Harness.expectEqual(mutex.defaultMapping[action: .back], nil, "套用快捷键顶掉同键动作")
+            Harness.expectEqual(mutex.defaultMapping[.back]?.keyCode, 0x35, "快捷键就位")
         }
     }
 

@@ -5,63 +5,72 @@ import SwiftUI
 extension SettingsView {
 
     var rewriteTab: some View {
-        Form {
-            modeSection
-            customModeSection
-            llmSection
+        VStack(alignment: .leading, spacing: Spacing.section) {
+            PageHeader(subtitle: "转写完成后、注入前交给语言模型处理；可自定义模式与服务商。")
+
+            modeGroup
+            customModeGroup
+            llmGroup
         }
-        .formStyle(.grouped)
+        .padding(Spacing.page)
     }
 
     // MARK: - 模式选择
 
-    private var modeSection: some View {
-        Section {
-            ForEach(allModeRows, id: \.id) { row in
-                HStack(spacing: 8) {
-                    Button {
-                        coordinator.selectMode(row.id)
-                    } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: row.id == coordinator.rewrite.effectiveActiveMode
-                                  ? "checkmark.circle.fill" : "circle")
-                                .foregroundStyle(row.id == coordinator.rewrite.effectiveActiveMode
-                                                 ? Color.accentColor : Color.secondary)
-                            Text(row.name)
-                                .foregroundStyle(.primary)
-                            if row.isCustom {
-                                Text("自定义")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            } else if row.hasOverride {
-                                Text("已调整")
-                                    .font(.caption2)
-                                    .foregroundStyle(.orange)
-                            }
-                            Spacer()
-                        }
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
+    private var modeGroup: some View {
+        SettingsGroup(title: "改写模式",
+                      footer: "「原文直出」不调用 LLM。点铅笔可查看并调整每个模式的提示词；内置模式的调整存为覆盖，可恢复默认。遥控器菜单键可呼出模式选单快速切换。") {
+            ForEach(Array(allModeRows.enumerated()), id: \.element.id) { index, row in
+                if index != 0 { RowDivider() }
+                modeRow(row)
+            }
+        }
+    }
 
-                    // 查看/调整提示词：内置与自定义模式都开放（原文直出没有 prompt）。
-                    if row.id != RewriteModes.rawID {
-                        Button {
-                            modeEditorTarget = row.editorTarget(coordinator: coordinator)
-                        } label: {
-                            Image(systemName: "pencil")
-                                .foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                        .help("查看/调整提示词")
+    private func modeRow(_ row: ModeRow) -> some View {
+        HStack(spacing: Spacing.intra) {
+            Button {
+                coordinator.selectMode(row.id)
+            } label: {
+                HStack(spacing: Spacing.intra) {
+                    Image(systemName: row.id == coordinator.rewrite.effectiveActiveMode
+                          ? "largecircle.fill.circle" : "circle")
+                        .foregroundStyle(row.id == coordinator.rewrite.effectiveActiveMode
+                                         ? Color.accentColor : Color.secondary)
+                        .frame(width: 20)
+                    Text(row.name)
+                        .foregroundStyle(.primary)
+                    if row.isCustom {
+                        Text("自定义")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    } else if row.hasOverride {
+                        Text("已调整")
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
                     }
                 }
+                .contentShape(Rectangle())
             }
-        } header: {
-            Text("改写模式")
-        } footer: {
-            Text("转写完成后、注入前交给语言模型处理。「原文直出」不调用 LLM。点铅笔可查看并调整每个模式的提示词；内置模式的调整存为覆盖，可恢复默认。遥控器菜单键可呼出模式选单快速切换。")
+            .buttonStyle(.plain)
+
+            Spacer()
+
+            // 查看/调整提示词：内置与自定义模式都开放（原文直出没有 prompt）。
+            if row.id != RewriteModes.rawID {
+                Button {
+                    modeEditorTarget = row.editorTarget(coordinator: coordinator)
+                } label: {
+                    Image(systemName: "pencil")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("查看/调整提示词")
+            }
         }
+        .padding(.horizontal, Spacing.rowH)
+        .padding(.vertical, Spacing.rowV)
+        .frame(minHeight: Spacing.rowMinHeight)
     }
 
     private struct ModeRow: Identifiable {
@@ -96,26 +105,25 @@ extension SettingsView {
 
     // MARK: - 自定义模式
 
-    @ViewBuilder
-    private var customModeSection: some View {
-        Section {
-            Button("新建自定义模式…") {
-                modeEditorTarget = ModeEditorTarget(
-                    mode: RewriteMode(name: "", prompt: ""), isBuiltin: false, hasOverride: false)
+    private var customModeGroup: some View {
+        SettingsGroup(title: "自定义模式",
+                      footer: "自定义模式只需描述想要的处理（例如「改成邮件语气」），系统会自动附加「只输出处理后文本」的约束。点击上方列表里自定义模式的铅笔进行编辑或删除。") {
+            SettingsPlainRow {
+                Button("新建自定义模式…") {
+                    modeEditorTarget = ModeEditorTarget(
+                        mode: RewriteMode(name: "", prompt: ""), isBuiltin: false, hasOverride: false)
+                }
+                .controlSize(.small)
             }
-            .controlSize(.small)
-        } header: {
-            Text("自定义模式")
-        } footer: {
-            Text("自定义模式只需描述想要的处理（例如「改成邮件语气」），系统会自动附加「只输出处理后文本」的约束。点击上方列表里自定义模式的铅笔进行编辑或删除。")
         }
     }
 
     // MARK: - LLM 服务商
 
-    private var llmSection: some View {
-        Section {
-            LabeledContent("服务商模板:") {
+    private var llmGroup: some View {
+        SettingsGroup(title: "LLM 服务商",
+                      footer: "支持 OpenAI 兼容与 Anthropic 两种协议。改写请求非流式、5 秒超时；超时或失败时注入原始转写文本，绝不丢弃。") {
+            SettingsRow(icon: "square.grid.2x2", title: "服务商模板") {
                 Picker("", selection: Binding(
                     get: { llmTemplateID },
                     set: { applyLLMTemplate($0) }
@@ -125,54 +133,44 @@ extension SettingsView {
                     }
                 }
                 .labelsHidden()
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize()
             }
             if llmTemplateID == "custom" {
-                LabeledContent("协议:") {
+                RowDivider()
+                SettingsRow(icon: "network", title: "协议") {
                     Picker("", selection: $llmProtoDraft) {
                         Text("OpenAI 兼容").tag(LLMProviderConfig.Proto.openai)
                         Text("Anthropic").tag(LLMProviderConfig.Proto.anthropic)
                     }
                     .labelsHidden()
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize()
                 }
             }
-            LabeledContent("接口地址:") {
+            RowDivider()
+            SettingsRow(icon: "link", title: "接口地址") {
                 TextField("https://api.openai.com/v1", text: $llmBaseURLDraft)
-                    .labelsHidden()
                     .textFieldStyle(.roundedBorder)
-                    .multilineTextAlignment(.leading)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(width: Spacing.fieldWidth)
             }
-            LabeledContent("API Key:") {
+            RowDivider()
+            SettingsRow(icon: "key.fill", title: "API Key") {
                 SecureField("sk-…", text: $llmKeyDraft)
-                    .labelsHidden()
                     .textFieldStyle(.roundedBorder)
-                    .multilineTextAlignment(.leading)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(width: Spacing.fieldWidth)
             }
-            LabeledContent("模型:") {
+            RowDivider()
+            SettingsRow(icon: "cpu", title: "模型") {
                 TextField("gpt-4o-mini", text: $llmModelDraft)
-                    .labelsHidden()
                     .textFieldStyle(.roundedBorder)
-                    .multilineTextAlignment(.leading)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(width: Spacing.fieldWidth)
             }
-            LabeledContent("状态:") {
-                HStack(spacing: 8) {
-                    Text(llmStatusText)
-                        .foregroundStyle(coordinator.rewrite.provider?.isComplete == true
-                                         ? Color.green : Color.secondary)
-                    Button("保存") { saveLLMProvider() }
-                        .controlSize(.small)
-                        .disabled(llmBaseURLDraft.isEmpty || llmModelDraft.isEmpty)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+            RowDivider()
+            SettingsRow(icon: "info.circle", title: "状态",
+                        subtitle: llmStatusText) {
+                Button("保存") { saveLLMProvider() }
+                    .controlSize(.small)
+                    .disabled(llmBaseURLDraft.isEmpty || llmModelDraft.isEmpty)
             }
-        } header: {
-            Text("LLM 服务商")
-        } footer: {
-            Text("支持 OpenAI 兼容与 Anthropic 两种协议。改写请求非流式、5 秒超时；超时或失败时注入原始转写文本，绝不丢弃。")
         }
     }
 

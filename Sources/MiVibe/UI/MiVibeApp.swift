@@ -29,12 +29,6 @@ struct MiVibeApp: App {
             .onAppear { AppDelegate.shared.attach(coordinator) }
         }
         .menuBarExtraStyle(.window)
-
-        Window("设置", id: "settings") {
-            SettingsView(coordinator: coordinator)
-                .onAppear { NSApp.activate(ignoringOtherApps: true) }
-        }
-        .windowResizability(.contentSize)
     }
 }
 
@@ -48,6 +42,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var panel: FloatPanelController?
     private var coordinator: Coordinator?
     private var cancellable: AnyCancellable?
+    /// 设置窗口（NSToolbar 分页）。懒创建，关闭不销毁。
+    private var settingsController: SettingsWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -63,6 +59,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                        .deletingLastPathComponent()  // Sources
                        .deletingLastPathComponent()  // 仓库根
                        .appendingPathComponent("Vendor/whisper.cpp/ggml/src/ggml-metal").path, 1)
+        }
+
+        // 开发走查：MIVIBE_OPEN_SETTINGS=<pane> 启动后直接打开对应设置页
+        // （值取 SettingsPane.rawValue，如 keyMapping）。仅 DEBUG 生效。
+        if let pane = ProcessInfo.processInfo.environment["MIVIBE_OPEN_SETTINGS"] {
+            Task { @MainActor in
+                // 注意：协调器挂在 AppDelegate.shared 上（MenuBarExtra label 的 onAppear
+                // 调的是 shared），不是 NSApplicationDelegateAdaptor 创建的这个实例。
+                // attach 时机不定——轮询等它挂上。
+                for _ in 0..<50 where AppDelegate.shared.coordinator == nil {
+                    try? await Task.sleep(nanoseconds: 100_000_000)
+                }
+                AppDelegate.shared.showSettings(pane: SettingsPane(rawValue: pane) ?? .recognition)
+            }
         }
         #endif
     }
@@ -87,5 +97,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.panel?.update(state: coordinator.float, message: coordinator.lastMessage)
                 self.panel?.update(picker: coordinator.picker)
             }
+    }
+
+    /// 打开设置窗口并激活 App。弹层「设置…」与 ⌘, 都走这里。
+    @MainActor
+    func showSettings(pane: SettingsPane? = nil) {
+        guard let coordinator else { return }
+        if settingsController == nil {
+            settingsController = SettingsWindowController(coordinator: coordinator)
+        }
+        settingsController?.show(pane: pane)
+        NSApp.activate(ignoringOtherApps: true)
     }
 }

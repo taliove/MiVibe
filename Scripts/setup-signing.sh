@@ -91,13 +91,26 @@ openssl req -x509 -newkey rsa:2048 -nodes \
   -addext "keyUsage=digitalSignature" \
   -addext "extendedKeyUsage=codeSigning" > /dev/null 2>&1
 
-security create-keychain -p "$KC_PASS" "$KEYCHAIN"
+# 上次跑到一半中断时钥匙串可能已存在（但里面没有身份）：只解锁，不重建。
+if [ -f "$KEYCHAIN" ]; then
+  echo "  钥匙串已存在（身份缺失），沿用"
+else
+  security create-keychain -p "$KC_PASS" "$KEYCHAIN"
+fi
 security unlock-keychain -p "$KC_PASS" "$KEYCHAIN"
-openssl pkcs12 -export -out "$WORK/id.p12" \
+
+# OpenSSL 3 生成的 p12 默认用 SHA256 MAC，Security 框架不认，import 报
+# "MAC verification failed"；LibreSSL（macOS 自带）没有 -legacy 选项但默认就兼容。
+# 探测一次，支持就加。
+PKCS12_FLAGS=()
+if openssl pkcs12 -help 2>&1 | grep -q -- "-legacy"; then
+  PKCS12_FLAGS=(-legacy)
+fi
+openssl pkcs12 -export "${PKCS12_FLAGS[@]}" -out "$WORK/id.p12" \
   -inkey "$WORK/key.pem" -in "$WORK/cert.pem" \
   -passout "pass:$KC_PASS" -name "$CERT_CN" > /dev/null 2>&1
 security import "$WORK/id.p12" -k "$KEYCHAIN" -P "$KC_PASS" \
-  -T /usr/bin/codesign -T /usr/bin/security > /dev/null 2>&1
+  -T /usr/bin/codesign -T /usr/bin/security
 
 # 放行 codesign 使用这把私钥，避免每次签名弹授权框。
 security set-key-partition-list -S apple-tool:,apple:,codesign: \

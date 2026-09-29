@@ -35,7 +35,7 @@ struct CustomModeEditor: View {
             Text(title ?? (draft.name.isEmpty ? "新建自定义模式" : "编辑自定义模式"))
                 .font(.headline)
 
-            LabeledContent("名称:") {
+            LabeledContent("名称") {
                 TextField("例如：邮件语气", text: $name)
                     .labelsHidden()
                     .textFieldStyle(.roundedBorder)
@@ -44,12 +44,18 @@ struct CustomModeEditor: View {
             }
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("处理指令:")
+                Text("处理指令")
                     .font(.callout)
                 TextEditor(text: $prompt)
                     .font(.system(size: 13))
                     .frame(minHeight: 160)
-                    .border(Color.secondary.opacity(0.3))
+                    .padding(2)
+                    .background(Color(nsColor: .textBackgroundColor),
+                                in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
+                    }
                 Text("系统会自动附加「只输出处理后的文本」的约束，这里只需描述想要的处理。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -61,6 +67,7 @@ struct CustomModeEditor: View {
                 }
                 Spacer()
                 Button("取消") { onCancel() }
+                    .keyboardShortcut(.cancelAction)
                 Button("保存") {
                     onSave(RewriteMode(id: draft.id, name: name, prompt: prompt))
                 }

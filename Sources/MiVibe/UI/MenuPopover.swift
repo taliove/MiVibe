@@ -2,19 +2,24 @@ import MiVibeCore
 import SwiftUI
 
 /// 菜单栏弹窗：状态 + 配对引导 + 待处理内容 + 设置入口（SPEC §7）。
+///
+/// 结构约定：头部是当前链路状态（连接 + 引擎 + 改写模式），中段按需出现
+/// 引导/权限/待处理，底部固定「设置… ⌘,」与「退出 ⌘Q」。引导与权限提示不用
+/// 卡片底色——弹窗里内容本就是一个整体，图标 + 加粗标题足够分层。
 struct MenuPopover: View {
     @ObservedObject var coordinator: Coordinator
-    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 12) {
             header
 
             if coordinator.link == .unpaired {
+                Divider()
                 pairingGuide
             }
 
             if !permissionsOK {
+                Divider()
                 permissionNotice
             }
 
@@ -26,14 +31,14 @@ struct MenuPopover: View {
             Divider()
             footer
         }
-        .padding(16)
+        .padding(14)
         .frame(width: 340)
     }
 
-    // MARK: - 分段
+    // MARK: - 头部：链路状态
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
                 Image(systemName: coordinator.link.icon)
                     .foregroundStyle(coordinator.link.color)
@@ -41,51 +46,96 @@ struct MenuPopover: View {
                     .font(.headline)
                 Spacer()
             }
-            HStack(spacing: 8) {
-                Text("识别引擎")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Menu {
-                    ForEach(ASREngine.allCases, id: \.self) { engine in
-                        Button {
-                            coordinator.setASREngine(engine)
-                        } label: {
-                            if engine == coordinator.asrEngine {
-                                Label(engine.displayName, systemImage: "checkmark")
-                            } else {
-                                Text(engine.displayName)
-                            }
-                        }
-                    }
+            statusRow(title: "识别引擎") { engineMenu }
+            statusRow(title: "改写模式") { modeMenu }
+        }
+    }
+
+    /// 状态行：左标签右控件，两行对齐一致。
+    private func statusRow<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
+        HStack {
+            Text(title)
+                .foregroundStyle(.secondary)
+            Spacer()
+            content()
+        }
+    }
+
+    private var engineMenu: some View {
+        Menu {
+            ForEach(ASREngine.allCases, id: \.self) { engine in
+                Button {
+                    coordinator.setASREngine(engine)
                 } label: {
-                    Text(coordinator.asrEngine.displayName)
+                    if engine == coordinator.asrEngine {
+                        Label(engine.displayName, systemImage: "checkmark")
+                    } else {
+                        Text(engine.displayName)
+                    }
                 }
-                .controlSize(.small)
-                .help("点击切换识别引擎")
             }
-            HStack(spacing: 8) {
-                Text("改写模式")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Button(coordinator.currentModeName) { coordinator.cycleMode() }
-                    .controlSize(.small)
-                    .help("点击切换到下一个模式；遥控器菜单键可呼出选单")
+        } label: {
+            popupLabel(coordinator.asrEngine.displayName)
+        }
+        .controlSize(.small)
+        .help("点击切换识别引擎")
+    }
+
+    private var modeMenu: some View {
+        Menu {
+            modeEntry(id: RewriteModes.rawID, name: "原文直出")
+            ForEach(RewriteModes.builtins) { mode in
+                modeEntry(id: mode.id, name: mode.name)
+            }
+            let custom = coordinator.rewrite.effectiveCustomModes
+            if !custom.isEmpty {
+                Divider()
+                ForEach(custom) { mode in
+                    modeEntry(id: mode.id, name: mode.name)
+                }
+            }
+        } label: {
+            popupLabel(coordinator.currentModeName)
+        }
+        .controlSize(.small)
+        .help("点击切换改写模式；遥控器菜单键可呼出选单")
+    }
+
+    private func modeEntry(id: String, name: String) -> some View {
+        Button {
+            coordinator.selectMode(id)
+        } label: {
+            if id == coordinator.rewrite.effectiveActiveMode {
+                Label(name, systemImage: "checkmark")
+            } else {
+                Text(name)
             }
         }
     }
 
+    /// 仿系统弹出按钮的「当前值 + 上下箭头」外观。
+    private func popupLabel(_ value: String) -> some View {
+        HStack(spacing: 4) {
+            Text(value)
+            Image(systemName: "chevron.up.chevron.down")
+                .font(.system(size: 9, weight: .medium))
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    // MARK: - 引导与权限
+
     private var pairingGuide: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("首次配对").font(.subheadline).bold()
+            Label("首次配对", systemImage: "exclamationmark.circle.fill")
+                .font(.subheadline).bold()
+                .foregroundStyle(.orange)
             Text("1. 遥控器进入配对状态（详见说明书）\n2. 点击下方「打开蓝牙设置」\n3. 在列表中选择「小米蓝牙语音遥控器」")
                 .font(.callout)
                 .foregroundStyle(.secondary)
-            Button("打开蓝牙设置") { Permissions.openBluetoothSettings() }
+            Button("打开蓝牙设置…") { Permissions.openBluetoothSettings() }
+                .controlSize(.small)
         }
-        .padding(10)
-        .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
     }
 
     private var permissionsOK: Bool {
@@ -94,15 +144,18 @@ struct MenuPopover: View {
 
     private var permissionNotice: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("需要辅助功能权限").font(.subheadline).bold()
+            Label("需要辅助功能权限", systemImage: "exclamationmark.triangle.fill")
+                .font(.subheadline).bold()
+                .foregroundStyle(.orange)
             Text("文字要写进别的应用，必须获得「辅助功能」授权。")
                 .font(.callout)
                 .foregroundStyle(.secondary)
-            Button("打开权限设置") { Permissions.openAccessibilitySettings() }
+            Button("打开权限设置…") { Permissions.openAccessibilitySettings() }
+                .controlSize(.small)
         }
-        .padding(10)
-        .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
     }
+
+    // MARK: - 待处理
 
     private var pendingItems: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -112,6 +165,9 @@ struct MenuPopover: View {
 
             ForEach(coordinator.queue.items) { item in
                 HStack(spacing: 8) {
+                    Circle()
+                        .fill(phaseColor(item.phase))
+                        .frame(width: 7, height: 7)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(phaseLabel(item.phase))
                             .font(.callout)
@@ -135,15 +191,25 @@ struct MenuPopover: View {
                     .controlSize(.small)
                     .help("丢弃")
                 }
+                .contextMenu {
+                    if phaseText(item.phase) != nil {
+                        Button("输入到这里") { coordinator.resumeHere(id: item.id) }
+                    }
+                    Button("丢弃", role: .destructive) { coordinator.discard(id: item.id) }
+                }
             }
         }
     }
 
+    // MARK: - 底部
+
     private var footer: some View {
         HStack {
-            Button("设置…") { openWindow(id: "settings") }
+            Button("设置…") { AppDelegate.shared.showSettings() }
+                .keyboardShortcut(",", modifiers: .command)
             Spacer()
             Button("退出") { NSApp.terminate(nil) }
+                .keyboardShortcut("q", modifiers: .command)
         }
     }
 
@@ -166,6 +232,15 @@ struct MenuPopover: View {
         case .needsAttention(.targetLost(let text)): return text.isEmpty ? nil : text
         case .needsAttention(.injectionFailed(let text)): return text
         case .listening, .transcribing, .needsAttention(.transcriptionFailed): return nil
+        }
+    }
+
+    /// 阶段色点：进行中蓝、就绪绿、需处理橙，与浮条状态色一致。
+    private func phaseColor(_ phase: InputQueue.Phase) -> Color {
+        switch phase {
+        case .listening, .transcribing: return FloatState.listening.color
+        case .ready: return FloatState.inserted.color
+        case .needsAttention: return FloatState.attention.color
         }
     }
 }

@@ -56,8 +56,8 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BINARY" "$APP/Contents/MacOS/MiVibe"
 
 # SwiftPM 把 .process("Resources") 打成 MiVibe_MiVibe.bundle 放在可执行文件旁边，
-# 而 .app 的 Bundle.main 找资源要去 Contents/Resources——不拷的话 Mi.png 只能靠
-# 源码目录的硬编码兜底路径加载，换个机器就丢图。
+# 而 .app 的 Bundle.main 找资源要去 Contents/Resources——不拷的话 AppIcon.icns
+# 不在 CFBundleIconFile 指向的位置，打包后的 App 就没有图标。
 RESOURCE_BUNDLE="$(dirname "$BINARY")/MiVibe_MiVibe.bundle"
 if [ -d "$RESOURCE_BUNDLE/Contents/Resources" ]; then
   cp -R "$RESOURCE_BUNDLE/Contents/Resources/" "$APP/Contents/Resources/"

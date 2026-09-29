@@ -9,6 +9,9 @@ import Foundation
 /// - **以 `AUDIO_STOP` 收口**，不以 HID 松开截断——松手后仍有尾帧在途。
 /// - 固件 2671 首连可能返回非标准 GET_CAPS 响应，须由 `AUDIO_START` 的 codec=2 二次确认。
 /// - 应用主动断开后重连可靠，进程被杀后立即重连即可恢复，**不需要退避**。
+/// - 已绑定且已连上系统的遥控器**扫描不到**（不再发可发现广播），只能靠
+///   `retrieveConnectedPeripherals` 拿到；休眠断开后被按键唤醒时系统会自动重连，
+///   所以搜索期间必须持续轮询它，不能只在进入搜索那一刻查一次。
 public final class RemoteManager: NSObject {
     // MARK: - 协议常量
 
@@ -21,6 +24,8 @@ public final class RemoteManager: NSObject {
     private static let getCaps: [UInt8] = [0x0A, 0x01, 0x00, 0x00, 0x03, 0x03]
     private static let expectedCodec: UInt8 = 2   // 16 kHz ADPCM
     private static let expectedFrameBytes = 120
+    /// 搜索期间轮询系统已连接设备的间隔。
+    private static let reacquireInterval: TimeInterval = 2
 
     public enum State: Equatable {
         case bluetoothUnavailable
@@ -60,6 +65,7 @@ public final class RemoteManager: NSObject {
     private var audio: CBCharacteristic?
     private var control: CBCharacteristic?
     private var capsRequested = false
+    private var reacquireTimer: Timer?
 
     private var adpcmState = ADPCM.State()
     private var pcmBuffer = Data()
@@ -76,24 +82,61 @@ public final class RemoteManager: NSObject {
 
     public func connect() {
         guard central.state == .poweredOn else { return }
-        // 已连接的设备走 retrieve，未连接才扫描。
-        let known = central.retrieveConnectedPeripherals(withServices: [Self.serviceUUID])
-        if let match = known.first(where: { ($0.name ?? "").contains("小米") }) {
+        // 已连接的设备走 retrieve，未连接才扫描；扫描同时轮询 retrieve，
+        // 接住之后才被系统重连上的设备。
+        if let match = connectedRemote() {
             attach(match)
         } else {
             state = .searching
             central.scanForPeripherals(withServices: [Self.serviceUUID])
+            startReacquire()
         }
     }
 
     public func disconnect() {
+        stopReacquire()
         if let peripheral { central.cancelPeripheralConnection(peripheral) }
         reset()
+    }
+
+    private func connectedRemote() -> CBPeripheral? {
+        central.retrieveConnectedPeripherals(withServices: [Self.serviceUUID])
+            .first(where: { ($0.name ?? "").contains("小米") })
+    }
+
+    private func startReacquire() {
+        guard reacquireTimer == nil else { return }
+        // target/selector 形式避开 @Sendable 闭包捕获；.common 模式保证菜单展开时照常触发。
+        let timer = Timer(
+            timeInterval: Self.reacquireInterval,
+            target: self,
+            selector: #selector(reacquireTick),
+            userInfo: nil,
+            repeats: true
+        )
+        RunLoop.main.add(timer, forMode: .common)
+        reacquireTimer = timer
+    }
+
+    private func stopReacquire() {
+        reacquireTimer?.invalidate()
+        reacquireTimer = nil
+    }
+
+    @objc private func reacquireTick() {
+        guard state == .searching, peripheral == nil, central.state == .poweredOn else {
+            stopReacquire()
+            return
+        }
+        guard let match = connectedRemote() else { return }
+        Log.chain.notice("remote reacquired from system-connected peripherals")
+        attach(match)
     }
 
     private func attach(_ device: CBPeripheral) {
         guard peripheral == nil else { return }
         central.stopScan()
+        stopReacquire()
         peripheral = device
         device.delegate = self
         state = .connecting
@@ -125,6 +168,7 @@ extension RemoteManager: CBCentralManagerDelegate {
         if central.state == .poweredOn {
             connect()
         } else {
+            stopReacquire()
             state = .bluetoothUnavailable
             reset()
         }

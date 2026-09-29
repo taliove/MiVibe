@@ -1,77 +1,84 @@
 import MiVibeCore
 import SwiftUI
 
-/// 「识别」Tab：识别引擎选择 + 豆包配置 + 本地模型下载管理。
+/// 「识别」Tab：识别引擎选择 + 豆包配置 + 本地模型下载管理 + 关键词纠正。
 extension SettingsView {
 
     var recognitionTab: some View {
-        Form {
-            Section {
-                LabeledContent("识别引擎:") {
-                    Picker("", selection: Binding(
-                        get: { coordinator.asrEngine },
-                        set: { coordinator.setASREngine($0) }
-                    )) {
-                        ForEach(ASREngine.allCases, id: \.self) { engine in
-                            Text(engine.displayName).tag(engine)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            } footer: {
-                Text(coordinator.asrEngine == .local
-                     ? "本地识别完全离线，音频不出本机。识别失败不会自动回退云端。"
-                     : "豆包语音为云端服务，按使用量计费。")
-            }
+        VStack(alignment: .leading, spacing: Spacing.section) {
+            PageHeader(subtitle: "选择识别引擎，管理 API Key、本地模型与关键词纠正。")
+
+            engineGroup
 
             if coordinator.asrEngine == .doubao {
-                doubaoSection
+                doubaoGroup
             } else {
-                localSection
+                localGroup
             }
 
-            keywordSection
+            keywordGroup
         }
-        .formStyle(.grouped)
+        .padding(Spacing.page)
+    }
+
+    // MARK: - 识别引擎
+
+    private var engineGroup: some View {
+        SettingsGroup(title: "识别引擎",
+                      footer: coordinator.asrEngine == .local
+                      ? "本地识别完全离线，音频不出本机。识别失败不会自动回退云端。"
+                      : "豆包语音为云端服务，按使用量计费。") {
+            SettingsPlainRow {
+                Picker("", selection: Binding(
+                    get: { coordinator.asrEngine },
+                    set: { coordinator.setASREngine($0) }
+                )) {
+                    ForEach(ASREngine.allCases, id: \.self) { engine in
+                        Text(engine.displayName).tag(engine)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+            }
+        }
     }
 
     // MARK: - 关键词纠正
 
-    private var keywordSection: some View {
-        Section {
-            ForEach(coordinator.keywords) { entry in
-                LabeledContent {
-                    Button {
-                        coordinator.deleteKeyword(entry.id)
-                    } label: {
-                        Image(systemName: "minus.circle")
-                            .foregroundStyle(.red)
-                    }
-                    .buttonStyle(.plain)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                } label: {
-                    HStack(spacing: 6) {
-                        Text(entry.from)
-                        Image(systemName: "arrow.right")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text(entry.to)
-                            .fontWeight(.medium)
+    private var keywordGroup: some View {
+        SettingsGroup(title: "关键词纠正",
+                      footer: "语音识别对专有名词、术语的误写是系统性的。对照表在转写完成后立即替换（两个引擎、「原文直出」都生效）；正确词表也会提示本地引擎与 LLM 改写按表纠正。") {
+            ForEach(Array(coordinator.keywords.enumerated()), id: \.element.id) { index, entry in
+                if index != 0 { RowDivider() }
+                SettingsRow(icon: "character", title: entry.from) {
+                    HStack(spacing: 8) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.right")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text(entry.to)
+                                .fontWeight(.medium)
+                        }
+                        Button {
+                            coordinator.deleteKeyword(entry.id)
+                        } label: {
+                            Image(systemName: "minus.circle")
+                                .foregroundStyle(.red)
+                        }
+                        .buttonStyle(.plain)
+                        .help("删除这条纠正")
                     }
                 }
             }
-
-            LabeledContent("误识别:") {
-                TextField("例如：考戴克斯", text: $keywordFromDraft)
-                    .labelsHidden()
-                    .textFieldStyle(.roundedBorder)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            LabeledContent("正确写法:") {
+            if !coordinator.keywords.isEmpty { RowDivider() }
+            SettingsPlainRow {
                 HStack(spacing: 8) {
-                    TextField("例如：Codex", text: $keywordToDraft)
-                        .labelsHidden()
+                    TextField("误识别，例如：考戴克斯", text: $keywordFromDraft)
+                        .textFieldStyle(.roundedBorder)
+                    Image(systemName: "arrow.right")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    TextField("正确写法，例如：Codex", text: $keywordToDraft)
                         .textFieldStyle(.roundedBorder)
                     Button("添加") {
                         coordinator.addKeyword(from: keywordFromDraft, to: keywordToDraft)
@@ -82,96 +89,76 @@ extension SettingsView {
                     .disabled(keywordFromDraft.trimmingCharacters(in: .whitespaces).isEmpty
                               || keywordToDraft.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
-        } header: {
-            Text("关键词纠正")
-        } footer: {
-            Text("语音识别对专有名词、术语的误写是系统性的。对照表在转写完成后立即替换（两个引擎、「原文直出」都生效）；正确词表也会提示本地引擎与 LLM 改写按表纠正。")
         }
     }
 
     // MARK: - 豆包语音
 
-    private var doubaoSection: some View {
-        Group {
-            Section {
-                LabeledContent("API Key:") {
-                    HStack(spacing: 8) {
-                        SecureField("粘贴 API Key", text: $apiKeyDraft)
-                            .labelsHidden()
-                            .textFieldStyle(.roundedBorder)
-                            .multilineTextAlignment(.leading)
-                        Button("保存") { saveKey() }
-                            .disabled(apiKeyDraft.isEmpty)
-                    }
+    private var doubaoGroup: some View {
+        SettingsGroup(title: "豆包语音",
+                      footer: "Key 存在 ~/.config/mivibe/config.json（明文）。二遍识别换来更准的标点分句，尾延迟约 +0.6s（实测 0.77s）。") {
+            SettingsRow(icon: "key.fill", title: "API Key",
+                        subtitle: saveResult ?? (Config.isConfigured ? "已配置" : "未配置")) {
+                HStack(spacing: 8) {
+                    SecureField("粘贴 API Key", text: $apiKeyDraft)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 150)
+                    Button("保存") { saveKey() }
+                        .controlSize(.small)
+                        .disabled(apiKeyDraft.isEmpty)
                 }
-                LabeledContent("状态:") {
-                    Text(saveResult ?? (Config.isConfigured ? "已配置" : "未配置"))
-                        .foregroundStyle(Config.isConfigured ? Color.green : Color.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                LabeledContent("二遍识别:") {
-                    Toggle("", isOn: Binding(
-                        get: { coordinator.enableNonstream },
-                        set: { coordinator.enableNonstream = $0 }
-                    ))
-                    .labelsHidden()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            } footer: {
-                Text("Key 存在 ~/.config/mivibe/config.json（明文）。二遍识别换来更准的标点分句，尾延迟约 +0.6s（实测 0.77s）。")
             }
-
-            Section {
-                LabeledContent("申请 Key:") {
-                    Button("打开语音控制台…") {
-                        NSWorkspace.shared.open(URL(string:
-                            "https://console.volcengine.com/speech/new/setting/apikeys?projectName=default")!)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+            RowDivider()
+            SettingsRow(icon: "checkmark.circle", title: "二遍识别",
+                        subtitle: "更准的标点分句，尾延迟约 +0.6s") {
+                Toggle("", isOn: Binding(
+                    get: { coordinator.enableNonstream },
+                    set: { coordinator.enableNonstream = $0 }
+                ))
+                .labelsHidden()
+            }
+            RowDivider()
+            SettingsRow(icon: "link", title: "申请 Key",
+                        subtitle: "火山引擎语音控制台") {
+                Button("打开…") {
+                    NSWorkspace.shared.open(URL(string:
+                        "https://console.volcengine.com/speech/new/setting/apikeys?projectName=default")!)
                 }
+                .controlSize(.small)
             }
         }
     }
 
     // MARK: - 本地识别
 
-    private var localSection: some View {
-        Group {
-            Section {
-                LabeledContent("本机配置:") {
-                    Text(String(format: "%.0f GB 内存 · %@", HardwareProfile.memoryGB,
-                                HardwareProfile.isAppleSilicon ? "Apple Silicon" : "Intel"))
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            } footer: {
-                Text("推荐档位按内存与芯片给出，只是建议——任何档位都可以自由下载使用。")
-            }
-
-            Section {
-                ForEach(ModelCatalog.all) { model in
-                    ModelRow(
-                        model: model,
-                        store: coordinator.modelStore,
-                        isRecommended: model.id == HardwareProfile.recommendedModelID,
-                        isActive: coordinator.localModelID == model.id,
-                        onSelect: { coordinator.setLocalModel(model.id) },
-                        onDelete: {
-                            // 删掉正在使用的模型时一并清掉选用，避免配置指向不存在的文件。
-                            if coordinator.localModelID == model.id { coordinator.setLocalModel(nil) }
-                            try? coordinator.modelStore.delete(model)
-                        }
-                    )
-                }
-            } footer: {
-                Text("模型保存在 ~/Library/Application Support/MiVibe/models。首次本地识别需编译 GPU 内核，较慢（约 15 秒），之后恢复正常。")
+    private var localGroup: some View {
+        SettingsGroup(title: "本地识别",
+                      footer: "模型保存在 ~/Library/Application Support/MiVibe/models。首次本地识别需编译 GPU 内核，较慢（约 15 秒），之后恢复正常。推荐档位按内存与芯片给出，只是建议——任何档位都可以自由下载使用。") {
+            SettingsRow(icon: "memorychip", title: "本机配置",
+                        subtitle: String(format: "%.0f GB 内存 · %@", HardwareProfile.memoryGB,
+                                         HardwareProfile.isAppleSilicon ? "Apple Silicon" : "Intel"))
+            RowDivider()
+            ForEach(Array(ModelCatalog.all.enumerated()), id: \.element.id) { index, model in
+                if index != 0 { RowDivider() }
+                ModelRow(
+                    model: model,
+                    store: coordinator.modelStore,
+                    isRecommended: model.id == HardwareProfile.recommendedModelID,
+                    isActive: coordinator.localModelID == model.id,
+                    onSelect: { coordinator.setLocalModel(model.id) },
+                    onDelete: {
+                        // 删掉正在使用的模型时一并清掉选用，避免配置指向不存在的文件。
+                        if coordinator.localModelID == model.id { coordinator.setLocalModel(nil) }
+                        try? coordinator.modelStore.delete(model)
+                    }
+                )
             }
         }
     }
 }
 
-/// 单个模型行：下载状态 + 推荐徽标 + 选用。
+/// 单个模型行：选用状态 + 推荐徽标 + 下载/选用操作。
 private struct ModelRow: View {
     let model: ModelCatalog.Model
     @ObservedObject var store: ModelStore
@@ -181,43 +168,53 @@ private struct ModelRow: View {
     let onDelete: () -> Void
 
     var body: some View {
-        LabeledContent {
-            HStack(spacing: 8) {
-                actionView
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        } label: {
-            HStack(spacing: 6) {
-                Text(model.displayName)
-                Text(model.sizeText)
+        HStack(spacing: Spacing.intra) {
+            Image(systemName: stateIcon)
+                .foregroundStyle(stateIconColor)
+                .frame(width: 20)
+            VStack(alignment: .leading, spacing: 1) {
+                HStack(spacing: 6) {
+                    Text(model.displayName).font(.body)
+                    Text(model.sizeText)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if isRecommended {
+                        Text("推荐")
+                            .font(.caption2)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .background(Color.accentColor.opacity(0.15), in: Capsule())
+                            .foregroundStyle(Color.accentColor)
+                    }
+                }
+                Text("\(model.speedNote) · \(model.qualityNote)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                if isRecommended {
-                    Text("推荐")
-                        .font(.caption2)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 1)
-                        .background(Color.accentColor.opacity(0.15), in: Capsule())
-                        .foregroundStyle(Color.accentColor)
-                }
+                    .lineLimit(2)
             }
+            Spacer(minLength: 8)
+            controls
+        }
+        .padding(.horizontal, Spacing.rowH)
+        .padding(.vertical, Spacing.rowV)
+        .frame(minHeight: Spacing.rowMinHeight)
+    }
+
+    private var stateIcon: String {
+        switch store.states[model.id] ?? .notDownloaded {
+        case .notDownloaded: return "arrow.down.circle"
+        case .downloading: return "arrow.down.circle.fill"
+        case .downloaded: return isActive ? "checkmark.circle.fill" : "circle"
+        case .failed: return "exclamationmark.circle"
         }
     }
 
-    @ViewBuilder
-    private var actionView: some View {
-        // 布局约定：左边固定是状态对应的操作按钮，右边固定是模型的速度/质量描述，
-        // 每行结构一致，扫一眼按钮列就知道每个模型的状态。
-        HStack(spacing: 8) {
-            controls
-            Spacer(minLength: 8)
-            Text("\(model.speedNote) · \(model.qualityNote)")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.trailing)
-                .lineLimit(2)
+    private var stateIconColor: Color {
+        switch store.states[model.id] ?? .notDownloaded {
+        case .downloaded: return isActive ? Color.accentColor : Color.secondary
+        case .failed: return Color.red
+        default: return Color.secondary
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder
@@ -228,24 +225,16 @@ private struct ModelRow: View {
                 .controlSize(.small)
         case .downloading(let progress):
             ProgressView(value: progress)
-                .frame(width: 100)
+                .frame(width: 80)
             Text("\(Int(progress * 100))%")
                 .font(.caption)
                 .monospacedDigit()
             Button("取消") { store.cancelDownload(model) }
                 .controlSize(.small)
         case .downloaded:
-            Button {
-                onSelect()
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: isActive ? "checkmark.circle.fill" : "circle")
-                        .foregroundStyle(isActive ? Color.accentColor : Color.secondary)
-                    Text(isActive ? "使用中" : "使用")
-                }
-            }
-            .controlSize(.small)
-            .disabled(isActive)
+            Button(isActive ? "使用中" : "使用") { onSelect() }
+                .controlSize(.small)
+                .disabled(isActive)
             Button("删除") { onDelete() }
                 .controlSize(.small)
         case .failed(let message):

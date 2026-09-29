@@ -15,6 +15,8 @@ final class FloatPanelModel: ObservableObject {
     @Published var message: String = ""
     /// 非 nil 时浮条渲染改写模式选单（优先级高于状态横条）。
     @Published var picker: Coordinator.ModePickerState?
+    /// 横条宽度：默认 560，窄屏（含刘海两侧可用区变小）时收紧，不溢出屏幕。
+    @Published var barWidth: CGFloat = 560
 }
 
 /// 实时音量电平 0…1（高频，约 66 Hz），只被球观察。
@@ -129,11 +131,18 @@ final class FloatPanelController {
     }
 
     private func showPanel() {
-        // 选单比状态横条高：按条目数撑开。
+        // 选单比状态横条高：按条目数撑开。宽度跟随屏幕可用区，窄屏不溢出。
         let height: CGFloat = model.picker.map { CGFloat($0.items.count) * 34 + 44 } ?? 56
-        panel.setContentSize(NSSize(width: 560, height: height))
+        model.barWidth = Self.fittingBarWidth()
+        panel.setContentSize(NSSize(width: model.barWidth, height: height))
         panel.positionBottomCenter()
         panel.orderFrontRegardless()
+    }
+
+    /// 横条宽度：默认 560，至少留出两侧 24pt 边距。
+    static func fittingBarWidth() -> CGFloat {
+        let visible = NSScreen.main?.visibleFrame.width ?? 560
+        return min(560, max(320, visible - 48))
     }
 
     private func scheduleHide(after seconds: TimeInterval) {
@@ -159,7 +168,7 @@ struct FloatBarView: View {
     var body: some View {
         Group {
             if let picker = model.picker {
-                ModePickerView(picker: picker)
+                ModePickerView(picker: picker, width: model.barWidth)
             } else {
                 HStack(spacing: 12) {
                     StatusBall(state: state, level: level.level, reduceMotion: reduceMotion)
@@ -178,7 +187,7 @@ struct FloatBarView: View {
                     Spacer(minLength: 0)
                 }
                 .padding(.horizontal, 14)
-                .frame(width: 560, height: 56)
+                .frame(width: model.barWidth, height: 56)
             }
         }
         .background(.black.opacity(0.86), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -196,6 +205,7 @@ struct FloatBarView: View {
 /// 所以这里没有任何可点元素——导航全部由按键路由完成。
 private struct ModePickerView: View {
     let picker: Coordinator.ModePickerState
+    let width: CGFloat
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -220,7 +230,7 @@ private struct ModePickerView: View {
                 .frame(height: 28)
         }
         .padding(.vertical, 8)
-        .frame(width: 560)
+        .frame(width: width)
     }
 }
 
