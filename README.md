@@ -11,7 +11,7 @@
     <img src="https://img.shields.io/badge/macOS-native-0C98A8?style=flat-square&logo=apple&logoColor=white&labelColor=2B3A3F" alt="macOS 原生应用">
     <img src="https://img.shields.io/badge/Swift-6.0-0C98A8?style=flat-square&logo=swift&logoColor=white&labelColor=2B3A3F" alt="Swift 6.0">
     <img src="https://img.shields.io/badge/ASR-cloud%20%2B%20local-0C98A8?style=flat-square&labelColor=2B3A3F" alt="云端与本地语音识别">
-    <img src="https://img.shields.io/github/v/release/taliove/mi-vibe?style=flat-square&color=0C98A8&labelColor=2B3A3F" alt="最新发布版本">
+    <img src="https://img.shields.io/github/v/release/taliove/MiVibe?style=flat-square&color=0C98A8&labelColor=2B3A3F" alt="最新发布版本">
   </p>
   <p><strong>中文</strong> · <a href="README.en.md">English</a> · <a href="#2-下载安装">下载安装</a> · <a href="#3-从源码构建">从源码构建</a> · <a href="AGENTS.md">开发协作</a></p>
 </div>
@@ -48,7 +48,7 @@ MiVibe 是常驻菜单栏的 macOS 原生应用。把光标放进输入框，按
 
 ### 2. 下载安装
 
-从 [Releases](https://github.com/taliove/mi-vibe/releases/latest) 下载 `MiVibe-<版本>-arm64.dmg`，打开后把 MiVibe 拖进「应用程序」。
+从 [Releases](https://github.com/taliove/MiVibe/releases/latest) 下载 `MiVibe-<版本>-arm64.dmg`，打开后把 MiVibe 拖进「应用程序」。
 
 发布包未经苹果公证，首次打开会提示"无法验证开发者"。到「系统设置 → 隐私与安全性」页面底部点「仍要打开」，或在终端去掉下载隔离标记：
 
@@ -137,6 +137,7 @@ swift run MiVibeTests      # 自带断言的可执行测试套件
 | [Tests/MiVibeTests](Tests/MiVibeTests) | 可执行测试与断言工具。 |
 | [AGENTS.md](AGENTS.md) / [CLAUDE.md](CLAUDE.md) | AI 协作规范 / Claude Code 入口。 |
 | [SPEC.md](SPEC.md) / [CONTEXT.md](CONTEXT.md) | 产品与技术规格 / 领域术语。规格含早期基线与后续增补，当前行为需对照源码。 |
+| [CHANGELOG.md](CHANGELOG.md) | 各版本更新记录（中英文）。 |
 | [docs/adr](docs/adr) | 架构决策记录。 |
 | [.scratch/mivibe](.scratch/mivibe) | 已入库的研究、票据与真机证据。 |
 

@@ -11,7 +11,7 @@
     <img src="https://img.shields.io/badge/macOS-native-0C98A8?style=flat-square&logo=apple&logoColor=white&labelColor=2B3A3F" alt="Native macOS app">
     <img src="https://img.shields.io/badge/Swift-6.0-0C98A8?style=flat-square&logo=swift&logoColor=white&labelColor=2B3A3F" alt="Swift 6.0">
     <img src="https://img.shields.io/badge/ASR-cloud%20%2B%20local-0C98A8?style=flat-square&labelColor=2B3A3F" alt="Cloud and local speech recognition">
-    <img src="https://img.shields.io/github/v/release/taliove/mi-vibe?style=flat-square&color=0C98A8&labelColor=2B3A3F" alt="Latest release">
+    <img src="https://img.shields.io/github/v/release/taliove/MiVibe?style=flat-square&color=0C98A8&labelColor=2B3A3F" alt="Latest release">
   </p>
   <p><a href="README.md">中文</a> · <strong>English</strong> · <a href="#download-and-install">Download</a> · <a href="#build-from-source">Build from source</a> · <a href="AGENTS.md">Contributing (Chinese)</a></p>
 </div>
@@ -36,7 +36,7 @@ The coding-assistant preset maps confirm to Return, back to Esc, and up/down to 
 
 ## Download and install
 
-Download `MiVibe-<version>-arm64.dmg` from [Releases](https://github.com/taliove/mi-vibe/releases/latest), open it, and drag MiVibe into Applications.
+Download `MiVibe-<version>-arm64.dmg` from [Releases](https://github.com/taliove/MiVibe/releases/latest), open it, and drag MiVibe into Applications.
 
 Release builds are not notarized. On first launch macOS says the developer cannot be verified: open System Settings → Privacy & Security and click "Open Anyway", or remove the download quarantine flag:
 
@@ -83,7 +83,7 @@ swift build
 swift run MiVibeTests
 ```
 
-Tests use a custom executable harness, not `swift test`. Read [AGENTS.md](AGENTS.md) for shared engineering rules, [CLAUDE.md](CLAUDE.md) for the Claude Code entry point, [SPEC.md](SPEC.md) for the product contract, and [CONTEXT.md](CONTEXT.md) for domain terms. Engineering documentation is primarily in Chinese.
+Tests use a custom executable harness, not `swift test`. Read [AGENTS.md](AGENTS.md) for shared engineering rules, [CLAUDE.md](CLAUDE.md) for the Claude Code entry point, [SPEC.md](SPEC.md) for the product contract, [CONTEXT.md](CONTEXT.md) for domain terms, and [CHANGELOG.md](CHANGELOG.md) for release notes in Chinese and English. Engineering documentation is primarily in Chinese.
 
 ---
 
