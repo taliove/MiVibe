@@ -1,0 +1,52 @@
+name: 问题反馈 · Bug report
+description: MiVibe 行为不符合预期 · Something does not work as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **请勿粘贴 API Key、录音、口述内容或未脱敏的系统日志。** Do not paste API keys, recordings, dictated text or unredacted logs.
+  - type: input
+    id: version
+    attributes:
+      label: MiVibe 版本 · Version
+      description: 设置 → 关于 · Settings → About
+      placeholder: "0.4.0 (5)"
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS 版本与机型 · macOS and Mac model
+      placeholder: "macOS 26.3, MacBook Air M3"
+    validations:
+      required: true
+  - type: dropdown
+    id: engine
+    attributes:
+      label: 识别引擎 · Recognition engine
+      options: [豆包云端 · Doubao cloud, 本地 whisper · Local whisper, 不相关 · Not relevant]
+    validations:
+      required: true
+  - type: input
+    id: remote
+    attributes:
+      label: 遥控器型号与固件 · Remote model and firmware
+      placeholder: "小米蓝牙语音遥控器，固件 2671"
+  - type: input
+    id: target
+    attributes:
+      label: 目标应用 · Target app
+      description: 文字要写入的应用 · The app you were typing into
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤 · Steps to reproduce
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望与实际 · Expected vs actual
+    validations:
+      required: true

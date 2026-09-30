@@ -138,6 +138,7 @@ swift run MiVibeTests      # 自带断言的可执行测试套件
 | [AGENTS.md](AGENTS.md) / [CLAUDE.md](CLAUDE.md) | AI 协作规范 / Claude Code 入口。 |
 | [SPEC.md](SPEC.md) / [CONTEXT.md](CONTEXT.md) | 产品与技术规格 / 领域术语。规格含早期基线与后续增补，当前行为需对照源码。 |
 | [CHANGELOG.md](CHANGELOG.md) | 各版本更新记录（中英文）。 |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | 参与贡献的流程与隐私要求。 |
 | [docs/adr](docs/adr) | 架构决策记录。 |
 | [.scratch/mivibe](.scratch/mivibe) | 已入库的研究、票据与真机证据。 |
 

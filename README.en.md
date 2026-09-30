@@ -83,7 +83,7 @@ swift build
 swift run MiVibeTests
 ```
 
-Tests use a custom executable harness, not `swift test`. Read [AGENTS.md](AGENTS.md) for shared engineering rules, [CLAUDE.md](CLAUDE.md) for the Claude Code entry point, [SPEC.md](SPEC.md) for the product contract, [CONTEXT.md](CONTEXT.md) for domain terms, and [CHANGELOG.md](CHANGELOG.md) for release notes in Chinese and English. Engineering documentation is primarily in Chinese.
+Tests use a custom executable harness, not `swift test`. Read [AGENTS.md](AGENTS.md) for shared engineering rules, [CLAUDE.md](CLAUDE.md) for the Claude Code entry point, [SPEC.md](SPEC.md) for the product contract, [CONTEXT.md](CONTEXT.md) for domain terms, and [CHANGELOG.md](CHANGELOG.md) for release notes in Chinese and English. See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a PR. Engineering documentation is primarily in Chinese.
 
 ## License and notices
 
