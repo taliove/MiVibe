@@ -68,34 +68,36 @@ enum BrandMarkTests {
                 "最矮声波在 0.45 档高度为 9")
         }
 
-        Harness.suite("make-icon.swift 矩形表不漂移") {
+        Harness.suite("品牌脚本矩形表不漂移") {
             // 相对本文件定位仓库根：Tests/MiVibeTests/BrandMarkTests.swift → 上三级
             let root = URL(fileURLWithPath: #filePath)
                 .deletingLastPathComponent()  // MiVibeTests
                 .deletingLastPathComponent()  // Tests
                 .deletingLastPathComponent()  // 仓库根
-            let scriptURL = root.appendingPathComponent("Scripts/make-icon.swift")
-            guard let text = try? String(contentsOf: scriptURL, encoding: .utf8) else {
-                Harness.expect(false, "能读取 Scripts/make-icon.swift")
-                return
-            }
-            Harness.expect(
-                text.contains("// Copy of BrandMark.bars — keep identical"),
-                "make-icon.swift 带矩形表拷贝注释")
-            for bar in BrandMark.bars {
-                let literal = String(
-                    format: "(%g, %g, %g, %g)",
-                    Double(bar.origin.x), Double(bar.origin.y),
-                    Double(bar.size.width), Double(bar.size.height))
+            for scriptName in ["Scripts/make-icon.swift", "Scripts/make-brand-images.swift"] {
+                let scriptURL = root.appendingPathComponent(scriptName)
+                guard let text = try? String(contentsOf: scriptURL, encoding: .utf8) else {
+                    Harness.expect(false, "能读取 \(scriptName)")
+                    continue
+                }
                 Harness.expect(
-                    text.contains(literal),
-                    "make-icon.swift 含矩形字面量 \(literal)")
-            }
-            for radius in BrandMark.cornerRadii {
-                let literal = String(format: "%g", Double(radius))
-                Harness.expect(
-                    text.contains(literal),
-                    "make-icon.swift 含圆角字面量 \(literal)")
+                    text.contains("// Copy of BrandMark.bars — keep identical"),
+                    "\(scriptName) 带矩形表拷贝注释")
+                for bar in BrandMark.bars {
+                    let literal = String(
+                        format: "(%g, %g, %g, %g)",
+                        Double(bar.origin.x), Double(bar.origin.y),
+                        Double(bar.size.width), Double(bar.size.height))
+                    Harness.expect(
+                        text.contains(literal),
+                        "\(scriptName) 含矩形字面量 \(literal)")
+                }
+                for radius in BrandMark.cornerRadii {
+                    let literal = String(format: "%g", Double(radius))
+                    Harness.expect(
+                        text.contains(literal),
+                        "\(scriptName) 含圆角字面量 \(literal)")
+                }
             }
         }
     }
