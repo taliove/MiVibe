@@ -52,6 +52,11 @@ public enum MotionTiming {
 
     // MARK: - 菜单栏
 
+    /// 模式选单确认：高亮行闪亮时长，闪完才收回选单。
+    public static let pickerConfirmFlash: Double = 0.16
+    /// 退场动画（Motion.exit，0.24 s）走完再 orderOut 的等待，多留 20 ms 余量。
+    public static let exitSettle: Double = 0.26
+
     /// 菜单栏电平帧的最高更新频率。
     public static let menuBarMaxFPS: Double = 6
     /// 相邻两帧的最小间隔。
@@ -60,10 +65,18 @@ public enum MotionTiming {
     /// 电平 0…1 → 三档菜单栏帧（0.45 / 0.75 / 1.0）。档边界左闭右开：
     /// < 0.30 用最低帧，< 0.65 用中帧，其余满帧。越界输入按端点收敛。
     public static func menuBarTier(level: Double) -> Double {
+        menuBarTiers[menuBarFrameIndex(level: level)]
+    }
+
+    /// 菜单栏三帧的声波高度档，按帧序排列（MenuBarIcon 据此预绘 levelFrames）。
+    public static let menuBarTiers: [Double] = [0.45, 0.75, 1.0]
+
+    /// 电平 0…1 → 帧序号（与 `menuBarTiers` 同序）。
+    public static func menuBarFrameIndex(level: Double) -> Int {
         let clamped = min(1, max(0, level))
-        if clamped < 0.30 { return 0.45 }
-        if clamped < 0.65 { return 0.75 }
-        return 1.0
+        if clamped < 0.30 { return 0 }
+        if clamped < 0.65 { return 1 }
+        return 2
     }
 
     // MARK: - 声波高度

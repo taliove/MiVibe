@@ -30,6 +30,19 @@ enum MotionTimingTests {
             Harness.expectEqual(MotionTiming.menuBarTier(level: 2.0), 1.0, "超 1 电平收敛到满帧")
         }
 
+        Harness.suite("MotionTiming 菜单栏帧序号与档位同序") {
+            // 驱动器按序号取 MenuBarIcon.levelFrames，序号与档位表必须一一对应。
+            Harness.expectEqual(MotionTiming.menuBarTiers, [0.45, 0.75, 1.0], "三档按帧序排列")
+            for level in [-1.0, 0, 0.29, 0.30, 0.64, 0.65, 1.0, 3.0] {
+                let index = MotionTiming.menuBarFrameIndex(level: level)
+                Harness.expect((0..<3).contains(index), "电平 \(level) 的帧序号在 0…2")
+                Harness.expectEqual(MotionTiming.menuBarTiers[index], MotionTiming.menuBarTier(level: level),
+                                    "电平 \(level)：序号取出的档位与 menuBarTier 一致")
+            }
+            Harness.expectEqual(MotionTiming.exitSettle > 0.24, true, "orderOut 等待长于退场动画 0.24 s")
+            Harness.expectEqual(MotionTiming.pickerConfirmFlash, 0.16, "选单确认闪亮 160 ms")
+        }
+
         Harness.suite("MotionTiming 菜单栏 6 fps 节流") {
             var throttle = MotionTiming.FrameThrottle(fps: 6)
             Harness.expect(throttle.shouldAdvance(at: 100.0), "首帧放行")

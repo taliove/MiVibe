@@ -85,8 +85,8 @@ final class ThemeStore: ObservableObject {
             mutate(&config)
             try Config.save(config)
         } catch {
-            // 与现有设置保存一致：失败不吞，打到控制台（配置目录权限问题等）。
-            print("主题配置保存失败: \(error)")
+            // 失败不吞：记入诊断日志（配置目录权限问题等），界面保持本次选择。
+            Log.settings.error("theme config save failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 }

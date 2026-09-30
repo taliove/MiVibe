@@ -6,6 +6,8 @@ import OSLog
 /// 只记状态与长度，**不记识别文字内容**——那是用户刚说过的话。
 public enum Log {
     public static let chain = Logger(subsystem: "io.github.taliove.mivibe", category: "chain")
+    /// 设置与主题配置的保存失败等（只记错误描述，不记配置内容）。
+    public static let settings = Logger(subsystem: "io.github.taliove.mivibe", category: "settings")
     /// 动效诊断（epic #1 子任务 F）：浮条视图更新计数等，仅 DEBUG 使用。
     public static let motion = Logger(subsystem: "io.github.taliove.mivibe", category: "motion")
 }

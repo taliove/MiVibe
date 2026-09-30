@@ -17,7 +17,7 @@ enum MenuBarIcon {
     private static let markFraction: CGFloat = 0.82
 
     /// 电平档三帧（0.45 / 0.75 / 1.0），F 任务按音量选帧驱动菜单栏动画。
-    static let levelFrames: [NSImage] = [0.45, 0.75, 1.0].map { tier in
+    static let levelFrames: [NSImage] = MotionTiming.menuBarTiers.map { tier in
         draw(levelTier: tier, alpha: 1, badge: false)
     }
 

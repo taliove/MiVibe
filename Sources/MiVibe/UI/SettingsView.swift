@@ -176,7 +176,7 @@ struct SettingsView: View {
             cfg.appearancePaneSeen = true
             try Config.save(cfg)
         } catch {
-            print("外观页标记保存失败: \(error)")
+            Log.settings.error("appearance-seen flag save failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 

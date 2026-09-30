@@ -17,11 +17,10 @@ final class MenuBarIconDriver: ObservableObject {
     /// 推入实时电平 0…1（约 66 Hz）。内部节流到 ≤ 6 fps，只在档位变化时换帧。
     func push(level: Double) {
         guard throttle.shouldAdvance(at: ProcessInfo.processInfo.systemUptime) else { return }
-        let tier = MotionTiming.menuBarTier(level: level)
+        let index = MotionTiming.menuBarFrameIndex(level: level)
+        let tier = MotionTiming.menuBarTiers[index]
         guard tier != currentTier else { return }
         currentTier = tier
-        // levelFrames 按 0.45 / 0.75 / 1.0 顺序绘制（见 MenuBarIcon）。
-        let index = tier < 0.6 ? 0 : (tier < 0.9 ? 1 : 2)
         frame = MenuBarIcon.levelFrames[index]
         #if DEBUG
         Log.motion.debug("menubar frame → tier \(tier)")

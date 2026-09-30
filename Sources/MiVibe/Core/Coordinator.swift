@@ -351,7 +351,7 @@ final class Coordinator: ObservableObject {
         // 闪亮播完再收起选单并切换模式。
         onPickerConfirmFlash?()
         pickerConfirmFlashTimer?.invalidate()
-        pickerConfirmFlashTimer = Timer.scheduledTimer(withTimeInterval: 0.16, repeats: false) { [weak self] _ in
+        pickerConfirmFlashTimer = Timer.scheduledTimer(withTimeInterval: MotionTiming.pickerConfirmFlash, repeats: false) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.closePicker()

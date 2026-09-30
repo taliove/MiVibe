@@ -303,23 +303,3 @@ struct MenuPopover: View {
         }
     }
 }
-
-/// 待处理列表的阶段 → 色点令牌映射（epic #1 子任务 C）。
-///
-/// 与浮条状态色同一套语义：进行中跟主题 accent，结果态用固定语义色。
-/// 独立成纯函数枚举，保证规则可脱离界面测试（QueueDotColorTests）。
-enum QueueDotColor {
-    enum Token {
-        case accent
-        case success
-        case attention
-    }
-
-    static func phase(_ phase: InputQueue.Phase) -> Token {
-        switch phase {
-        case .listening, .transcribing: return .accent
-        case .ready: return .success
-        case .needsAttention: return .attention
-        }
-    }
-}
