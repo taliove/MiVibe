@@ -114,8 +114,8 @@ struct RemoteControlView: View {
                 }
             }
             .contentShape(Circle())
-            .animation(Motion.select, value: isFlashing)
-            .animation(Motion.select, value: isSelected)
+            .animation(Motion.instant, value: isFlashing)
+            .animation(Motion.instant, value: isSelected)
         }
         .buttonStyle(.plain)
         .place(x: key.x, y: key.y, d: key.d, unit: unit)

@@ -61,7 +61,7 @@ struct KeyMappingSelectedCard: View {
         }
         .padding(.horizontal, Spacing.rowH)
         .padding(.vertical, Spacing.rowV)
-        .animation(Motion.select, value: selectedButton)
+        .animation(Motion.instant, value: selectedButton)
     }
 
     /// 键徽标上的短字符（方向用箭头，确认用 OK，与实物键帽观感一致）。

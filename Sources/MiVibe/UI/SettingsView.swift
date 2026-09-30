@@ -96,7 +96,7 @@ struct SettingsView: View {
 
     var body: some View {
         // 窗口高度各页统一，内容超出由这里滚动。按页设 id：切页回到顶部，
-        // 不沿用上一页的滚动位置。
+        // 不沿用上一页的滚动位置。切页只做淡入淡出，不滑动（与系统设置一致，F）。
         ScrollView {
             Group {
                 switch paneModel.pane {
@@ -112,6 +112,8 @@ struct SettingsView: View {
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .id(paneModel.pane)
+        .transition(.opacity)
+        .animation(Motion.quick, value: paneModel.pane)
         .tint(Color.brandAccent)
         .onAppear {
             loadLLMDrafts()

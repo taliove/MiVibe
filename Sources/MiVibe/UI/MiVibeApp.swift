@@ -2,11 +2,47 @@ import Combine
 import MiVibeCore
 import SwiftUI
 
+/// 菜单栏图标驱动（epic #1 子任务 F）：正在听时按电平三档（0.45 / 0.75 / 1.0）
+/// 切预先绘好的模板帧，每秒至多 6 帧（离散帧而不是平滑动画——菜单栏里平滑动画
+/// 显得躁）；离开听音立即回到静态完整标记。帧节流用 `MotionTiming.FrameThrottle`，
+/// 电平回调约 66 Hz，真正换帧最多 6 次 / 秒（AC8）。
+@MainActor
+final class MenuBarIconDriver: ObservableObject {
+    /// 正在听时要显示的帧（nil = 静态完整标记，即不在听）。
+    @Published private(set) var frame: NSImage?
+
+    private var throttle = MotionTiming.FrameThrottle(fps: MotionTiming.menuBarMaxFPS)
+    private var currentTier: Double = 1.0
+
+    /// 推入实时电平 0…1（约 66 Hz）。内部节流到 ≤ 6 fps，只在档位变化时换帧。
+    func push(level: Double) {
+        guard throttle.shouldAdvance(at: ProcessInfo.processInfo.systemUptime) else { return }
+        let tier = MotionTiming.menuBarTier(level: level)
+        guard tier != currentTier else { return }
+        currentTier = tier
+        // levelFrames 按 0.45 / 0.75 / 1.0 顺序绘制（见 MenuBarIcon）。
+        let index = tier < 0.6 ? 0 : (tier < 0.9 ? 1 : 2)
+        frame = MenuBarIcon.levelFrames[index]
+        #if DEBUG
+        Log.motion.debug("menubar frame → tier \(tier)")
+        #endif
+    }
+
+    /// 离开听音：清空帧，回到静态标记，并重置节流（下次开听第一帧立即放行）。
+    func rest() {
+        frame = nil
+        currentTier = 1.0
+        throttle.reset()
+    }
+}
+
 /// 应用入口：菜单栏常驻，无主窗口（Info.plist 设 LSUIElement=1）。
 @main
 struct MiVibeApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @StateObject private var coordinator = Coordinator()
+    /// 菜单栏电平帧驱动：AppDelegate.attach 时把电平回调接进来（F）。
+    @StateObject private var menuBarDriver = MenuBarIconDriver()
 
     var body: some Scene {
         MenuBarExtra {
@@ -16,21 +52,22 @@ struct MiVibeApp: App {
             // 丢——没有这个角标，用户就无从得知还有文字在等着处理。
             ZStack(alignment: .topTrailing) {
                 // 品牌标记模板图标（epic #1 子任务 B）：isTemplate，深浅菜单栏由系统着色。
-                // 正在听暂用静态完整标记，三帧电平图在 MenuBarIcon.levelFrames，由 F 驱动。
-                Image(nsImage: coordinator.float == .listening
-                      ? MenuBarIcon.listening
-                      : MenuBarIcon.image(for: coordinator.link))
+                // 正在听时按电平三档离散换帧（≤ 6 fps，F），其余状态用静态图。
+                Image(nsImage: menuBarDriver.frame ?? MenuBarIcon.image(for: coordinator.link))
                 if coordinator.hasPendingWork {
                     Circle()
                         .fill(Color.brandError)
                         .frame(width: 5, height: 5)
                         .offset(x: 2, y: -2)
+                        // 待处理角标弹出（F：quick 缩放 0 → 1）。
+                        .transition(.scale(scale: 0).combined(with: .opacity))
                 }
             }
+            .animation(Motion.quick, value: coordinator.hasPendingWork)
             // attach 必须在启动时就发生：它负责连遥控器、启动按键通道、创建浮条。
             // 原先挂在弹窗的 onAppear 上——用户不点开图标，整条语音链路就是死的。
             // label 在启动时即渲染，onAppear 随启动触发。
-            .onAppear { AppDelegate.shared.attach(coordinator) }
+            .onAppear { AppDelegate.shared.attach(coordinator, menuBarDriver: menuBarDriver) }
         }
         .menuBarExtraStyle(.window)
     }
@@ -142,7 +179,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// 挂上协调器并开始驱动浮条。多次调用只生效一次。
     @MainActor
-    func attach(_ coordinator: Coordinator) {
+    func attach(_ coordinator: Coordinator, menuBarDriver: MenuBarIconDriver? = nil) {
         #if DEBUG
         if ProcessInfo.processInfo.environment["MIVIBE_FLOAT_DEMO"] != nil {
             if demoPanel == nil { runFloatDemo() }
@@ -153,7 +190,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.coordinator = coordinator
         let panel = FloatPanelController()
         self.panel = panel
-        coordinator.onAudioLevel = { [weak panel] level in panel?.setLevel(level) }
+        coordinator.onAudioLevel = { [weak panel, weak menuBarDriver] level in
+            panel?.setLevel(level)
+            menuBarDriver?.push(level: level)
+        }
+        coordinator.onPickerConfirmFlash = { [weak panel] in panel?.flashPickerConfirm() }
         installTerminationSignalHandlers()
         coordinator.start()
 
@@ -162,10 +203,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // 合并成一次刷新，也就读不到中间态。
         cancellable = coordinator.objectWillChange
             .receive(on: RunLoop.main)
-            .sink { [weak self, weak coordinator] _ in
+            .sink { [weak self, weak coordinator, weak menuBarDriver] _ in
                 guard let self, let coordinator else { return }
                 self.panel?.update(state: coordinator.float, message: coordinator.lastMessage)
                 self.panel?.update(picker: coordinator.picker)
+                // 离开听音立即回到静态标记（AC8：1 帧内归位）。
+                if coordinator.float != .listening { menuBarDriver?.rest() }
             }
     }
 

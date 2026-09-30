@@ -169,6 +169,10 @@ private struct ModelRow: View {
     let onSelect: () -> Void
     let onDelete: () -> Void
 
+    /// 下载是否刚完成：用于给对勾一次弹入动画（进入 downloaded 分支时置位，
+    /// 下一帧复位——动画只播一次）。
+    @State private var checkPop = false
+
     var body: some View {
         HStack(spacing: Spacing.intra) {
             Image(systemName: stateIcon)
@@ -200,6 +204,22 @@ private struct ModelRow: View {
         .padding(.horizontal, Spacing.rowH)
         .padding(.vertical, Spacing.rowV)
         .frame(minHeight: Spacing.rowMinHeight)
+        // 下载完成瞬间：对勾从 0.6 倍弹入（epic #1 子任务 F，quick + 弹性）。
+        // 先渲染 0.6 倍的一帧，下一帧再推到 1，动画才播得出来。
+        .onChange(of: store.states[model.id]) { _, newValue in
+            if case .downloaded = newValue {
+                checkPop = false
+                DispatchQueue.main.async {
+                    withAnimation(Motion.standard) { checkPop = true }
+                }
+            } else {
+                checkPop = true
+            }
+        }
+        .onAppear {
+            // 行出现时已是已下载状态（例如重新打开窗口）：不播弹入，直接到位。
+            if case .downloaded = store.states[model.id] { checkPop = true }
+        }
     }
 
     private var stateIcon: String {
@@ -226,14 +246,21 @@ private struct ModelRow: View {
             Button("下载") { store.download(model) }
                 .controlSize(.small)
         case .downloading(let progress):
-            ProgressView(value: progress)
-                .frame(width: 80)
-            Text("\(Int(progress * 100))%")
-                .font(.caption)
-                .monospacedDigit()
+            HStack(spacing: 8) {
+                ProgressView(value: progress)
+                    .frame(width: 80)
+                Text("\(Int(progress * 100))%")
+                    .font(.caption)
+                    .monospacedDigit()
+            }
             Button("取消") { store.cancelDownload(model) }
                 .controlSize(.small)
         case .downloaded:
+            // 下载完成：对勾替换进度条弹出（epic #1 子任务 F，quick 缩放淡入）。
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(Color.brandSuccess)
+                .scaleEffect(checkPop ? 1 : 0.6)
+                .opacity(checkPop ? 1 : 0)
             Button(isActive ? "使用中" : "使用") { onSelect() }
                 .controlSize(.small)
                 .disabled(isActive)

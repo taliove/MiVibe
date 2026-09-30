@@ -22,5 +22,6 @@ BrandMarkTests.run()
 QueueDotColorTests.run()
 SettingsPaneTests.run()
 AppearancePaneConfigTests.run()
+MotionTimingTests.run()
 
 Harness.finish()

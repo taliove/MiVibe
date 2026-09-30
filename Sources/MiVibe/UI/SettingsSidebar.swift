@@ -21,6 +21,9 @@ struct SettingsSidebar: View {
 
     /// 侧栏焦点：只有聚焦时 ↑/↓ 才移动选中，避免抢走详情列里控件的方向键。
     @FocusState private var focused: Bool
+    /// 选中块的 matchedGeometry 命名空间（F：选中块滑到新行，不是瞬跳）。
+    @Namespace private var selectionSpace
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ScrollView {
@@ -31,7 +34,8 @@ struct SettingsSidebar: View {
                     SidebarRow(
                         pane: pane,
                         isSelected: paneModel.pane == pane,
-                        showNewBadge: pane == .appearance && showAppearanceNewBadge
+                        showNewBadge: pane == .appearance && showAppearanceNewBadge,
+                        selectionSpace: selectionSpace
                     ) {
                         paneModel.pane = pane
                     }
@@ -41,6 +45,7 @@ struct SettingsSidebar: View {
             .padding(.vertical, 8)
         }
         .tint(Color.brandAccent)
+        .animation(reduceMotion ? nil : Motion.standard, value: paneModel.pane)
         .focused($focused)
         .focusable()
         .onMoveCommand { direction in
@@ -100,11 +105,14 @@ struct SettingsSidebar: View {
 }
 
 /// 侧栏导航行：28pt 高、图标 + 标题，选中 = 主题填充底 + 填充面文字/图标色，
-/// 悬停 = 着色背景 60%。选中切换即时完成，无滑动动画（动效属子任务 F）。
+/// 悬停 = 着色背景 60%。选中块是一块 `matchedGeometryEffect` 的填充，在行之间
+/// 滑动（Motion.standard）；减弱动态效果时瞬切（epic #1 子任务 F）。
 private struct SidebarRow: View {
     let pane: SettingsPane
     let isSelected: Bool
     var showNewBadge = false
+    /// 与侧栏共享的 matchedGeometry 命名空间。
+    let selectionSpace: Namespace.ID
     let action: () -> Void
 
     @State private var hovering = false
@@ -133,8 +141,7 @@ private struct SidebarRow: View {
             .padding(.horizontal, 10)
             .frame(height: 28)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(background,
-                        in: RoundedRectangle(cornerRadius: Radius.badge))
+            .background { selectionBackground }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -142,9 +149,16 @@ private struct SidebarRow: View {
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
-    private var background: Color {
-        if isSelected { return Color.brandAccentFill }
-        if hovering { return Color.brandAccentSoft.opacity(0.6) }
-        return .clear
+    @ViewBuilder
+    private var selectionBackground: some View {
+        if isSelected {
+            // 一块选中填充在行之间滑动（命名空间在侧栏，跨行匹配）。
+            RoundedRectangle(cornerRadius: Radius.badge)
+                .fill(Color.brandAccentFill)
+                .matchedGeometryEffect(id: "selection", in: selectionSpace)
+        } else {
+            RoundedRectangle(cornerRadius: Radius.badge)
+                .fill(hovering ? Color.brandAccentSoft.opacity(0.6) : .clear)
+        }
     }
 }
