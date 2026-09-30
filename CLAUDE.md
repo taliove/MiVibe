@@ -15,7 +15,7 @@
 
 | 要了解什么 | 入口 |
 | --- | --- |
-| 产品介绍、安装与使用 | [README.md](README.md) |
+| 产品介绍、安装与使用 | [README.md](README.md)（中文）/ [README.en.md](README.en.md)（English） |
 | 领域术语与输入 / 发送语义 | [CONTEXT.md](CONTEXT.md) |
 | 产品与协议合同、后续迭代 | [SPEC.md](SPEC.md) |
 | 架构决策与本地识别选型 | [docs/adr](docs/adr) |

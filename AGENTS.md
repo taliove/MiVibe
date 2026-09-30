@@ -8,7 +8,7 @@ MiVibe 是 macOS 菜单栏原生应用：小米蓝牙遥控器提供音频与按
 
 核心语义：**输入不等于发送；失败必须可恢复；焦点改变后不能强行注入。**
 
-- 代码注释与工程文档使用中文；README 保持中文优先、中英文内容一致。
+- 代码注释与工程文档使用中文；README 分为中文 `README.md` 与英文 `README.en.md`，两份内容保持一致；改一份须同步另一份。
 - 标识符沿用现有 Swift 风格；提交信息采用英文 Conventional Commits。
 - 保持原生 SwiftUI / AppKit 方向，沿用现有层次与依赖。产品或架构变更先说明对现有合同的影响。
 
@@ -49,6 +49,7 @@ CI 顺序见 `.github/workflows/ci.yml`：拉取依赖 → 构建 → 测试 →
 | `Scripts/setup-signing.sh` | 创建固定本地签名身份及相关钥匙串配置，通常只需首次运行。 |
 | `Scripts/build-app.sh [debug\|release]` | 重建仓库内 `build/MiVibe.app`，默认 release；可能下载依赖。 |
 | `Scripts/deploy.sh [debug\|release]` | 关闭 MiVibe、构建、替换 `/Applications/MiVibe.app` 并启动，默认 release。 |
+| `Scripts/make-dmg.sh` | 把已组装的 `build/MiVibe.app` 打成 `build/MiVibe-<版本>-<架构>.dmg`；发布流程用它生成 DMG，发布说明模板在 `.github/release-notes.md`。 |
 | `MIVIBE_SIGN_IDENTITY=- Scripts/build-app.sh release` | 显式使用 ad-hoc 签名，适合 CI 组装验证。 |
 
 只在任务需要安装、权限或发布验证时执行相应操作；普通文档编辑不触碰用户的已安装应用与系统授权。
