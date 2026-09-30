@@ -19,6 +19,7 @@ struct ShortcutRecorder: View {
     @State private var recording = false
     @State private var monitor: Any?
     @FocusState private var focused: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// 便捷初始化：不需要外部触发录制时用这个。
     init(shortcut: Shortcut?, onRecord: @escaping (Shortcut) -> Void) {
@@ -44,6 +45,19 @@ struct ShortcutRecorder: View {
         }
         .controlSize(.small)
         .borderlessIfRecording(recording)
+        // 录制中外圈以 1 Hz 呼吸，提示正在等你按键（epic #1 子任务 F）。
+        .overlay {
+            if recording && !reduceMotion {
+                TimelineView(.periodic(from: .now, by: 1.0 / 30)) { context in
+                    let phase = context.date.timeIntervalSinceReferenceDate
+                        .truncatingRemainder(dividingBy: 1)
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(Color.brandAccent.opacity(0.5 * (1 - phase)),
+                                lineWidth: 2)
+                        .padding(-2 - 2 * phase)
+                }
+            }
+        }
         .focused($focused)
         .onDisappear { stop() }
         // 窗口失焦即取消：录制结果来自本进程事件，失焦后收不到任何键。

@@ -250,7 +250,13 @@ struct MenuPopover: View {
                     }
                     Button("丢弃", role: .destructive) { coordinator.discard(id: item.id) }
                 }
+                // 待处理项增删过渡（epic #1 子任务 F）：新项从上方滑入淡入，
+                // 移除时淡出并轻缩，下方内容跟着上移（standard 弹簧）。
+                .transition(.asymmetric(
+                    insertion: .move(edge: .top).combined(with: .opacity),
+                    removal: .opacity.combined(with: .scale(scale: 0.98))))
             }
+            .animation(Motion.standard, value: coordinator.queue.items.map(\.id))
         }
     }
 

@@ -347,11 +347,25 @@ final class Coordinator: ObservableObject {
     private func pickerConfirm() {
         guard let p = picker else { return }
         let item = p.items[p.highlight]
-        closePicker()
-        selectMode(item.id)
-        float = .notice
-        lastMessage = "已切换到：\(item.name)"
+        // 先让浮条把高亮行闪亮一下（160 ms，epic #1 子任务 F 的确认反馈），
+        // 闪亮播完再收起选单并切换模式。
+        onPickerConfirmFlash?()
+        pickerConfirmFlashTimer?.invalidate()
+        pickerConfirmFlashTimer = Timer.scheduledTimer(withTimeInterval: 0.16, repeats: false) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.closePicker()
+                self.selectMode(item.id)
+                self.float = .notice
+                self.lastMessage = "已切换到：\(item.name)"
+            }
+        }
     }
+
+    private var pickerConfirmFlashTimer: Timer?
+    /// 确认闪亮的外推口（epic #1 子任务 F）：AppDelegate 把它接到浮条的
+    /// `flashPickerConfirm()`，解耦方向与 `onAudioLevel` 一致。
+    var onPickerConfirmFlash: (() -> Void)?
 
     func closePicker() {
         picker = nil

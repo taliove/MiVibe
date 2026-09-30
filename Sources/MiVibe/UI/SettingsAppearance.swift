@@ -83,17 +83,24 @@ struct SettingsAppearanceView: View {
         let palette = ThemePalette.palette(id)
         let isSelected = themeStore.theme == id
         return Button {
-            themeStore.set(theme: id)
+            // 主题换色用 Motion.theme（0.25 s）整窗渐变过去（F）。
+            withAnimation(Motion.theme) {
+                themeStore.set(theme: id)
+            }
         } label: {
             Circle()
                 .fill(Color(nsColor: .dynamic(light: palette.accent, dark: palette.accentDark)))
                 .frame(width: 20, height: 20)
                 .overlay(Circle().strokeBorder(Color.brandAccent.opacity(isSelected ? 0 : 0.25), lineWidth: 1))
                 .padding(2)
-                .overlay(Circle().strokeBorder(Color.brandAccent, lineWidth: isSelected ? 2 : 0))
+                // 选中环弹出（standard 弹簧），取消选中即刻消失。
+                .overlay(Circle().strokeBorder(Color.brandAccent, lineWidth: isSelected ? 2 : 0)
+                    .scaleEffect(isSelected ? 1 : 0.6)
+                    .opacity(isSelected ? 1 : 0))
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
+        .animation(Motion.standard, value: isSelected)
         .help(palette.displayName)
         .accessibilityLabel(palette.displayName)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
@@ -120,20 +127,12 @@ struct SettingsAppearanceView: View {
     }
 
     /// 静态「正在听」浮条：实心主题色圆 + 三条声波柱 + 文案。与真实浮条同观感，
-    /// 但固定不动（动效属子任务 F）。深色填充面上的文字用 brandOnAccentFill。
+    /// 但固定不动（真实的电平驱动见子任务 F 的 `ListeningBall`）。深色填充面上的
+    /// 文字用 brandOnAccentFill。
     private var floatBarPreview: some View {
         HStack(spacing: 10) {
-            ZStack {
-                Circle()
-                    .fill(Color.brandAccentFill)
-                    .frame(width: 34, height: 34)
-                HStack(alignment: .center, spacing: 2.5) {
-                    Capsule().frame(width: 3, height: 10)
-                    Capsule().frame(width: 3, height: 16)
-                    Capsule().frame(width: 3, height: 12)
-                }
-                .foregroundStyle(Color.brandOnAccentFill)
-            }
+            StatusBall(state: .listening, level: 0.55, reduceMotion: true)
+                .frame(width: 40, height: 40)
             Text("正在听")
                 .fontWeight(.semibold)
             Text("松开语音键结束")
