@@ -57,14 +57,14 @@ struct PresetSheet: View {
                 } label: {
                     HStack {
                         Image(systemName: "wand.and.stars")
-                            .foregroundStyle(Color.accentColor)
+                            .foregroundStyle(Color.brandAccent)
                         Text(preset.name)
                         Spacer()
                     }
                     .padding(.horizontal, Spacing.rowH)
                     .padding(.vertical, Spacing.rowV)
                     .background(selectedPresetID == preset.id
-                                ? Color.accentColor.opacity(0.12) : Color.clear,
+                                ? Color.brandAccentSoft : Color.clear,
                                 in: RoundedRectangle(cornerRadius: Radius.small))
                     .contentShape(Rectangle())
                 }
@@ -121,7 +121,7 @@ struct PresetSheet: View {
         .font(.caption)
         .padding(.horizontal, 6)
         .padding(.vertical, 3)
-        .background(conflict ? Color.yellow.opacity(0.18) : Color.clear,
+        .background(conflict ? Color.brandAttention.opacity(0.16) : Color.clear,
                     in: RoundedRectangle(cornerRadius: Radius.small))
     }
 
@@ -146,6 +146,7 @@ struct PresetSheet: View {
                 coordinator.applyPreset(preset, to: scope, onlyFillEmpty: onlyFillEmpty)
                 onDismiss()
             }
+            .buttonStyle(.borderedProminent)
             .keyboardShortcut(.defaultAction)
             .disabled(selectedPreset == nil)
         }

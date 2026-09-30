@@ -97,8 +97,8 @@ struct RemoteControlView: View {
             ZStack {
                 keyFace(key)
                 Circle()
-                    .fill(isFlashing ? Color.accentColor.opacity(0.9)
-                          : isSelected ? Color.accentColor.opacity(0.75)
+                    .fill(isFlashing ? Color.brandAccent.opacity(0.9)
+                          : isSelected ? Color.brandAccent.opacity(0.8)
                           : Color.clear)
                 Circle()
                     .strokeBorder(isSelected || isFlashing ? Color.white.opacity(0.9)
@@ -141,10 +141,10 @@ struct RemoteControlView: View {
         }
     }
 
-    /// 绑定来源对应的描边颜色：自有 / 覆盖用强调色，继承用灰色，未绑定不描。
+    /// 绑定来源对应的描边颜色：自有 / 覆盖用主题色，继承用灰色，未绑定不描。
     private func strokeColor(for source: KeyBindingSource) -> Color {
         switch source {
-        case .own, .overridden: return Color.accentColor
+        case .own, .overridden: return Color.brandAccent
         case .inherited: return Color.gray.opacity(0.7)
         case .unbound: return Color.clear
         }

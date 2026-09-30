@@ -3,6 +3,11 @@ import Combine
 import MiVibeCore
 import SwiftUI
 
+extension Notification.Name {
+    /// 详情页看过外观页后发此通知，侧栏收到即隐藏「新」胶囊。
+    static let settingsAppearancePaneSeen = Notification.Name("MiVibeSettingsAppearancePaneSeen")
+}
+
 /// 设置窗口控制器：侧栏分页（设备状态卡 + 导航）+ 详情列。
 ///
 /// SPEC §7 的基线曾是「工具栏分页」，后改为侧栏（导航项多了以后工具栏放不下，
@@ -30,6 +35,8 @@ final class SettingsWindowController: NSObject, NSToolbarDelegate {
 
     private let window: NSWindow
     private let paneModel: SettingsPaneModel
+    /// 侧栏视图（「新」胶囊显隐由详情页状态回流更新）。
+    private weak var sidebarController: NSHostingController<SettingsSidebar>?
     /// ⌘数字切页、⌘[ / ⌘] 前进后退。只在窗口是 key 时响应；控制器与 App 同寿命，
     /// monitor 一次安装、deinit 移除，不存在重复注册。
     /// nonisolated(unsafe)：deinit 非隔离，需要能读到它。
@@ -39,12 +46,16 @@ final class SettingsWindowController: NSObject, NSToolbarDelegate {
     /// paneModel 的订阅（页名与导航可用性）。
     private var cancellables: Set<AnyCancellable> = []
 
-    init(coordinator: Coordinator) {
+    init(coordinator: Coordinator, themeStore: ThemeStore) {
         let paneModel = SettingsPaneModel()
         self.paneModel = paneModel
 
-        let sidebar = NSHostingController(rootView: SettingsSidebar(coordinator: coordinator, paneModel: paneModel))
-        let detail = NSHostingController(rootView: SettingsView(coordinator: coordinator, paneModel: paneModel))
+        let sidebar = NSHostingController(rootView: SettingsSidebar(
+            coordinator: coordinator, paneModel: paneModel,
+            showAppearanceNewBadge: Config.load().appearancePaneSeen != true))
+        let detail = NSHostingController(rootView: SettingsView(
+            coordinator: coordinator, paneModel: paneModel, themeStore: themeStore))
+        sidebarController = sidebar
         // 尺寸由窗口决定，不让 SwiftUI 的理想尺寸反向约束窗口（否则切页又会伸缩）。
         sidebar.sizingOptions = []
         detail.sizingOptions = []
@@ -98,6 +109,14 @@ final class SettingsWindowController: NSObject, NSToolbarDelegate {
             .removeDuplicates()
             .sink { [weak self] title in self?.window.title = title }
             .store(in: &cancellables)
+        // 「新」胶囊：详情页一旦看过外观页（appearancePaneSeen 回流为 true），侧栏立即隐藏。
+        NotificationCenter.default.publisher(for: .settingsAppearancePaneSeen)
+            .sink { [weak self] _ in
+                guard let self, var root = self.sidebarController?.rootView else { return }
+                root.showAppearanceNewBadge = false
+                self.sidebarController?.rootView = root
+            }
+            .store(in: &cancellables)
         paneModel.$canGoBack
             .removeDuplicates()
             .sink { [weak self] in self?.navigationControl?.setEnabled($0, forSegment: Segment.back) }
@@ -133,10 +152,10 @@ final class SettingsWindowController: NSObject, NSToolbarDelegate {
             paneModel.goForward()
             return true
         default:
-            guard let index = Int(String(char)).map({ $0 - 1 }),
-                  SettingsPane.allCases.indices.contains(index)
+            guard let digit = Int(String(char)),
+                  let pane = SettingsPane.pane(forShortcutDigit: digit)
             else { return false }
-            paneModel.pane = SettingsPane.allCases[index]
+            paneModel.pane = pane
             return true
         }
     }

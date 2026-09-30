@@ -36,7 +36,7 @@ extension SettingsView {
                     Image(systemName: row.id == coordinator.rewrite.effectiveActiveMode
                           ? "largecircle.fill.circle" : "circle")
                         .foregroundStyle(row.id == coordinator.rewrite.effectiveActiveMode
-                                         ? Color.accentColor : Color.secondary)
+                                         ? Color.brandAccent : Color.secondary)
                         .frame(width: 20)
                     Text(row.name)
                         .foregroundStyle(.primary)
@@ -47,7 +47,10 @@ extension SettingsView {
                     } else if row.hasOverride {
                         Text("已调整")
                             .font(.caption2)
-                            .foregroundStyle(.orange)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .background(Color.brandAttention.opacity(0.14), in: Capsule())
+                            .foregroundStyle(Color.brandAttention)
                     }
                 }
                 .contentShape(Rectangle())
@@ -169,6 +172,7 @@ extension SettingsView {
                         subtitle: llmStatusText) {
                 Button("保存") { saveLLMProvider() }
                     .controlSize(.small)
+                    .buttonStyle(.borderedProminent)
                     .disabled(llmBaseURLDraft.isEmpty || llmModelDraft.isEmpty)
             }
         }

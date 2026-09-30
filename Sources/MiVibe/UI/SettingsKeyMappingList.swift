@@ -33,7 +33,7 @@ struct KeyMappingAllKeysList: View {
         } label: {
             HStack(spacing: Spacing.intra) {
                 Image(systemName: KeyMappingSelectedCard.icon(for: button))
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(Color.brandAccent)
                     .frame(width: 20)
                 Text(button.displayName).font(.body)
                 Spacer(minLength: 8)
@@ -51,7 +51,7 @@ struct KeyMappingAllKeysList: View {
             .padding(.horizontal, Spacing.rowH)
             .padding(.vertical, Spacing.rowV)
             .frame(minHeight: Spacing.rowMinHeight)
-            .background(isSelected ? Color.accentColor.opacity(0.12) : Color.clear)
+            .background(isSelected ? Color.brandAccentSoft : Color.clear)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -74,7 +74,7 @@ struct KeyMappingAllKeysList: View {
         case .overridden:
             return Text("覆盖")
                 .font(.caption2.weight(.medium))
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(Color.brandAccent)
         case .own, .unbound:
             return nil
         }
