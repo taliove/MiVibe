@@ -34,8 +34,15 @@ final class ThemeStore: ObservableObject {
 
     init() {
         let config = Config.load()
-        let theme = config.effectiveTheme
-        let appearance = config.effectiveAppearance
+        var theme = config.effectiveTheme
+        var appearance = config.effectiveAppearance
+        #if DEBUG
+        // 开发走查：MIVIBE_THEME=<ThemeID> / MIVIBE_APPEARANCE=<system|light|dark>
+        // 只覆盖本次运行，不写配置（截图对照设计稿用）。
+        let env = ProcessInfo.processInfo.environment
+        if let raw = env["MIVIBE_THEME"], let id = ThemeID(rawValue: raw) { theme = id }
+        if let raw = env["MIVIBE_APPEARANCE"], let mode = AppearanceMode(rawValue: raw) { appearance = mode }
+        #endif
         self.theme = theme
         self.appearance = appearance
         BrandColorCurrent.update(ThemePalette.palette(theme))
