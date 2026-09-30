@@ -27,6 +27,9 @@ public enum BrandMark {
     public static let cornerRadii: [CGFloat] = [4.5, 4.5, 4.5, 4, 3.5, 3.5]
 
     /// 将 100 单位网格映射到目标矩形，返回完整标记的路径。
+    /// 声波柱允许的最大放大倍数：中间柱 44 × 1.25 = 55，仍矮于光标柱 58。
+    public static let maxBarScale: Double = 1.25
+
     public static func path(in rect: CGRect) -> CGPath {
         path(in: rect, levelTier: 1.0)
     }
@@ -35,12 +38,19 @@ public enum BrandMark {
     /// 只对三根声波按 `levelTier` 缩短高度并保持垂直居中，光标柱与衬线不变。
     public static func path(in rect: CGRect, levelTier: Double) -> CGPath {
         let tier = min(max(levelTier, 0), 1)
+        return path(in: rect, barScales: [tier, tier, tier])
+    }
+
+    /// 三根声波各自缩放（菜单栏「正在听」逐帧跳动用）；缺省项按 1 处理。
+    /// 单根缩放限制在 0…`maxBarScale`，保证最高一根不超过光标柱。
+    public static func path(in rect: CGRect, barScales: [Double]) -> CGPath {
         let path = CGMutablePath()
         for (index, bar) in bars.enumerated() {
             var scaled = bar
             if index < 3 {
-                // 声波柱：绕自身垂直中心缩短高度。
-                let height = bar.height * tier
+                // 声波柱：绕自身垂直中心缩放高度。
+                let factor = min(max(index < barScales.count ? barScales[index] : 1, 0), maxBarScale)
+                let height = bar.height * factor
                 scaled = CGRect(
                     x: bar.minX, y: bar.midY - height / 2,
                     width: bar.width, height: height)

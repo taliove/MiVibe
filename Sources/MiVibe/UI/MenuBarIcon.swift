@@ -16,9 +16,13 @@ enum MenuBarIcon {
     /// 标记在图标内的占比（四周各留 ~9% 呼吸位）。
     private static let markFraction: CGFloat = 0.82
 
-    /// 电平档三帧（0.45 / 0.75 / 1.0），F 任务按音量选帧驱动菜单栏动画。
-    static let levelFrames: [NSImage] = MotionTiming.menuBarTiers.map { tier in
-        draw(levelTier: tier, alpha: 1, badge: false)
+    /// 正在听的逐帧图：`levelFrames[档位][图案]`，档位见 `MotionTiming.menuBarTiers`，
+    /// 图案见 `MotionTiming.menuBarPatterns`。启动时预绘，驱动时只换图不重绘。
+    static let levelFrames: [[NSImage]] = MotionTiming.menuBarTiers.indices.map { tier in
+        MotionTiming.menuBarPatterns.indices.map { pattern in
+            draw(barScales: MotionTiming.menuBarBarScales(tierIndex: tier, patternIndex: pattern),
+                 alpha: 1, badge: false)
+        }
     }
 
     /// 按链路状态取模板图标。
@@ -33,7 +37,7 @@ enum MenuBarIcon {
         }
     }
 
-    /// 正在听（暂为静态完整标记，与 connected 相同；F 接管后按电平选 `levelFrames`）。
+    /// 正在听的静态图（减弱动态效果时用）：完整标记。
     static var listening: NSImage {
         draw(levelTier: 1.0, alpha: 1, badge: false)
     }
@@ -41,6 +45,10 @@ enum MenuBarIcon {
     // MARK: - 绘制
 
     private static func draw(levelTier: Double, alpha: CGFloat, badge: Bool) -> NSImage {
+        draw(barScales: [levelTier, levelTier, levelTier], alpha: alpha, badge: badge)
+    }
+
+    private static func draw(barScales: [Double], alpha: CGFloat, badge: Bool) -> NSImage {
         let s = pointSize
         let image = NSImage(size: NSSize(width: s, height: s), flipped: false) { rect in
             guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
@@ -48,7 +56,7 @@ enum MenuBarIcon {
             let markRect = CGRect(x: (s - markEdge) / 2, y: (s - markEdge) / 2,
                                   width: markEdge, height: markEdge)
             ctx.setFillColor(NSColor.black.withAlphaComponent(alpha).cgColor)
-            ctx.addPath(BrandMark.path(in: markRect, levelTier: levelTier))
+            ctx.addPath(BrandMark.path(in: markRect, barScales: barScales))
             ctx.fillPath()
 
             if badge {

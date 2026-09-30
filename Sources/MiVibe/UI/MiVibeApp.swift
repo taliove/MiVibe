@@ -12,25 +12,28 @@ final class MenuBarIconDriver: ObservableObject {
     @Published private(set) var frame: NSImage?
 
     private var throttle = MotionTiming.FrameThrottle(fps: MotionTiming.menuBarMaxFPS)
-    private var currentTier: Double = 1.0
+    private var pattern = 0
 
-    /// 推入实时电平 0…1（约 66 Hz）。内部节流到 ≤ 6 fps，只在档位变化时换帧。
+    /// 推入实时电平 0…1（约 66 Hz）。节流到 ≤ 6 fps：每帧换一个跳动图案，
+    /// 音量决定幅度档位——录音期间图标一直在跳，声音越大跳得越高。
     func push(level: Double) {
         guard throttle.shouldAdvance(at: ProcessInfo.processInfo.systemUptime) else { return }
-        let index = MotionTiming.menuBarFrameIndex(level: level)
-        let tier = MotionTiming.menuBarTiers[index]
-        guard tier != currentTier else { return }
-        currentTier = tier
-        frame = MenuBarIcon.levelFrames[index]
+        guard !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else {
+            frame = MenuBarIcon.listening
+            return
+        }
+        let tier = MotionTiming.menuBarFrameIndex(level: level)
+        pattern = (pattern + 1) % MotionTiming.menuBarPatterns.count
+        frame = MenuBarIcon.levelFrames[tier][pattern]
         #if DEBUG
-        Log.motion.debug("menubar frame → tier \(tier)")
+        Log.motion.debug("menubar frame → tier \(tier) pattern \(self.pattern)")
         #endif
     }
 
     /// 离开听音：清空帧，回到静态标记，并重置节流（下次开听第一帧立即放行）。
     func rest() {
         frame = nil
-        currentTier = 1.0
+        pattern = 0
         throttle.reset()
     }
 }
@@ -174,6 +177,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
     }
+
+    @MainActor private var menuBarDemoTimer: Timer?
+
+    @MainActor
+    private func runMenuBarDemo(_ driver: MenuBarIconDriver) {
+        // 约 66 Hz 推入起伏的合成电平，与真实录音的回调频率一致。
+        var t = 0.0
+        menuBarDemoTimer = Timer.scheduledTimer(withTimeInterval: 0.015, repeats: true) { _ in
+            t += 0.015
+            let level = 0.5 + 0.5 * sin(t * 5.3) * sin(t * 1.7)
+            MainActor.assumeIsolated { driver.push(level: level) }
+        }
+    }
     #endif
 
     /// 挂上协调器并开始驱动浮条。多次调用只生效一次。
@@ -182,6 +198,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         #if DEBUG
         if ProcessInfo.processInfo.environment["MIVIBE_FLOAT_DEMO"] != nil {
             if demoPanel == nil { runFloatDemo() }
+            return
+        }
+        // 开发走查：MIVIBE_MENUBAR_DEMO=1 只用合成电平驱动菜单栏图标，不挂协调器。
+        if ProcessInfo.processInfo.environment["MIVIBE_MENUBAR_DEMO"] != nil {
+            if let menuBarDriver { runMenuBarDemo(menuBarDriver) }
             return
         }
         #endif

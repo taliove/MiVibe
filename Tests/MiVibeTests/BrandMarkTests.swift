@@ -8,6 +8,7 @@ import MiVibeCore
 /// 3. make-icon.swift 里的矩形表必须与 BrandMark.bars 逐字一致，防止两份拷贝漂移。
 enum BrandMarkTests {
     static func run() {
+        perBarScales()
         Harness.suite("BrandMark") {
             // 1a. 所有矩形落在 0...100 网格内
             for (index, bar) in BrandMark.bars.enumerated() {
@@ -99,6 +100,21 @@ enum BrandMarkTests {
                         "\(scriptName) 含圆角字面量 \(literal)")
                 }
             }
+        }
+    }
+
+    /// 逐根缩放：只动三根声波，光标柱与衬线不动；越界按 0…maxBarScale 收敛。
+    static func perBarScales() {
+        Harness.suite("品牌标记逐根缩放") {
+            let rect = CGRect(x: 0, y: 0, width: 100, height: 100)
+            let full = BrandMark.path(in: rect).boundingBox
+            let same = BrandMark.path(in: rect, barScales: [1, 1, 1]).boundingBox
+            Harness.expect(full == same, "全 1 缩放等于原始标记")
+            let tall = BrandMark.path(in: rect, barScales: [9, 9, 9]).boundingBox
+            Harness.expect(tall.height <= full.height + 0.001, "放大受 maxBarScale 限制，不高过光标柱")
+            let tier = BrandMark.path(in: rect, levelTier: 0.5).boundingBox
+            let uniform = BrandMark.path(in: rect, barScales: [0.5, 0.5, 0.5]).boundingBox
+            Harness.expect(tier == uniform, "levelTier 与三根等值缩放一致")
         }
     }
 }

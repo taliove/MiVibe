@@ -20,3 +20,28 @@ private struct BrandMarkShape: Shape {
         Path(BrandMark.path(in: rect))
     }
 }
+
+/// 应用内的品牌图标：圆角矩形 + 当前主题渐变 + 白色标记，随主题换色。
+///
+/// 访达、程序坞里的 AppIcon.icns 是静态文件，始终是品牌默认色（潮汐青）；
+/// 应用内（设置侧栏、关于页）属于主题管辖范围，跟随用户选的主题。
+struct ThemedAppIcon: View {
+    let size: CGFloat
+    @ObservedObject private var themeStore = AppDelegate.shared.themeStore
+
+    var body: some View {
+        let palette = themeStore.palette
+        ZStack {
+            RoundedRectangle(cornerRadius: size * 0.225, style: .continuous)
+                .fill(LinearGradient(colors: [Color(nsColor: NSColor(palette.iconTop)),
+                                              Color(nsColor: NSColor(palette.iconBottom))],
+                                     startPoint: .top, endPoint: .bottom))
+            // BrandMark 的 100 网格里标记占中间 64%，与 make-icon.swift 一致。
+            BrandGlyph()
+                .foregroundStyle(.white)
+                .frame(width: size, height: size)
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
+    }
+}

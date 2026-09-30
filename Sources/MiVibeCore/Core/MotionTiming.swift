@@ -71,6 +71,23 @@ public enum MotionTiming {
     /// 菜单栏三帧的声波高度档，按帧序排列（MenuBarIcon 据此预绘 levelFrames）。
     public static let menuBarTiers: [Double] = [0.45, 0.75, 1.0]
 
+    /// 菜单栏声波的跳动图案（三根柱各自的相对高度）。正在听时每帧换一个图案，
+    /// 所以即使音量稳定图标也在跳；音量只决定跳动幅度（`menuBarTiers`）。
+    /// 只按档位整体缩放在 18 pt 图标上几乎看不出来（真机反馈）。
+    public static let menuBarPatterns: [[Double]] = [
+        [0.55, 1.20, 0.70],
+        [1.00, 0.60, 1.10],
+        [0.70, 1.05, 0.45],
+        [1.15, 0.80, 0.90],
+    ]
+
+    /// 某档位 × 某图案的三根柱最终缩放：图案 × 幅度，下限 0.3 避免柱子消失。
+    public static func menuBarBarScales(tierIndex: Int, patternIndex: Int) -> [Double] {
+        let amplitude = menuBarTiers[min(max(tierIndex, 0), menuBarTiers.count - 1)]
+        let pattern = menuBarPatterns[((patternIndex % menuBarPatterns.count) + menuBarPatterns.count) % menuBarPatterns.count]
+        return pattern.map { max(0.3, $0 * amplitude) }
+    }
+
     /// 电平 0…1 → 帧序号（与 `menuBarTiers` 同序）。
     public static func menuBarFrameIndex(level: Double) -> Int {
         let clamped = min(1, max(0, level))

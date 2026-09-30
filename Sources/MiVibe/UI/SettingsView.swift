@@ -220,9 +220,7 @@ struct SettingsView: View {
     /// 品牌头图：应用图标 + 字标 + 标语（后半句主题色）+ 版本。
     private var heroCard: some View {
         VStack(spacing: 6) {
-            Image(nsImage: NSApp.applicationIconImage)
-                .resizable()
-                .frame(width: 84, height: 84)
+            ThemedAppIcon(size: 84)
                 .shadow(color: .black.opacity(0.18), radius: 8, y: 8)
             Text("MiVibe")
                 .font(.system(size: 26, weight: .bold, design: .rounded))

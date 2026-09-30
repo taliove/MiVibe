@@ -16,6 +16,8 @@ import SwiftUI
 struct SettingsSidebar: View {
     @ObservedObject var coordinator: Coordinator
     @ObservedObject var paneModel: SettingsPaneModel
+    /// 侧栏在独立的 hosting controller 里，要自己观察主题，换主题时选中块才会立刻换色。
+    @ObservedObject private var themeStore = AppDelegate.shared.themeStore
     /// 「新」胶囊是否还显示（外观页被打开过一次后隐藏）。
     var showAppearanceNewBadge: Bool
 
@@ -48,6 +50,8 @@ struct SettingsSidebar: View {
         .animation(reduceMotion ? nil : Motion.standard, value: paneModel.pane)
         .focused($focused)
         .focusable()
+        // 自绘侧栏不要系统蓝色焦点环：选中态已由选中块表达（真机反馈：右缘一条蓝线）。
+        .focusEffectDisabled()
         .onMoveCommand { direction in
             guard focused else { return }
             let panes = SettingsPane.allCases
@@ -67,9 +71,7 @@ struct SettingsSidebar: View {
 
     private var deviceCard: some View {
         HStack(spacing: Spacing.intra) {
-            Image(nsImage: NSApplication.shared.applicationIconImage)
-                .resizable()
-                .frame(width: 36, height: 36)
+            ThemedAppIcon(size: 36)
             VStack(alignment: .leading, spacing: 3) {
                 Text("MiVibe").font(.headline)
                 statusCapsule

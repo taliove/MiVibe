@@ -30,6 +30,28 @@ enum MotionTimingTests {
             Harness.expectEqual(MotionTiming.menuBarTier(level: 2.0), 1.0, "超 1 电平收敛到满帧")
         }
 
+        Harness.suite("MotionTiming 菜单栏跳动图案") {
+            let patterns = MotionTiming.menuBarPatterns
+            Harness.expect(patterns.count >= 3, "至少三种图案，循环起来看得出在跳")
+            Harness.expect(patterns.allSatisfy { $0.count == 3 }, "每个图案给三根声波各一个高度")
+            // 相邻图案（含首尾相接）每一根都要有明显变化，否则 18 pt 图标上看不出动。
+            for i in patterns.indices {
+                let a = patterns[i], b = patterns[(i + 1) % patterns.count]
+                let maxDelta = zip(a, b).map { abs($0 - $1) }.max() ?? 0
+                Harness.expect(maxDelta >= 0.3, "图案 \(i) → \((i + 1) % patterns.count) 至少一根柱变化 ≥ 0.3")
+            }
+            for tier in MotionTiming.menuBarTiers.indices {
+                for pattern in -1...patterns.count {
+                    let scales = MotionTiming.menuBarBarScales(tierIndex: tier, patternIndex: pattern)
+                    Harness.expect(scales.count == 3 && scales.allSatisfy { $0 >= 0.3 && $0 <= BrandMark.maxBarScale },
+                                   "档位 \(tier) 图案 \(pattern)：缩放在 0.3…\(BrandMark.maxBarScale)")
+                }
+            }
+            let quiet = MotionTiming.menuBarBarScales(tierIndex: 0, patternIndex: 0)
+            let loud = MotionTiming.menuBarBarScales(tierIndex: 2, patternIndex: 0)
+            Harness.expect(zip(quiet, loud).allSatisfy { $0 <= $1 }, "同一图案，大声档不矮于小声档")
+        }
+
         Harness.suite("MotionTiming 菜单栏帧序号与档位同序") {
             // 驱动器按序号取 MenuBarIcon.levelFrames，序号与档位表必须一一对应。
             Harness.expectEqual(MotionTiming.menuBarTiers, [0.45, 0.75, 1.0], "三档按帧序排列")

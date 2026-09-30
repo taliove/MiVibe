@@ -147,7 +147,7 @@ private struct SignatureBall: View {
 
         ZStack {
             Circle()
-                .fill(polishing ? Color(nsColor: .brandAccentFill) : color.opacity(1 - 0.82 * fillFade))
+                .fill(polishing ? Color(nsColor: .brandAccentFill) : color.opacity(1 - 0.72 * fillFade))
                 .animation(Motion.quick, value: polishing)
 
             // 声波三根：向中心收拢并压扁，随后淡出。
@@ -162,11 +162,16 @@ private struct SignatureBall: View {
             .offset(x: 0)
             .opacity(1 - fadeOut)
 
-            // 圆弧：18% 底色圆 + 28% 弧段旋转；改写时弧转白。
+            // 圆弧：28% 底色圆 + 整圈浅轨道 + 28% 弧段旋转；改写时弧转白。
+            // 早先只有 18% 底色 + 细弧，叠在毛玻璃上几乎看不出（真机反馈）。
+            Circle()
+                .stroke((polishing ? Color.brandOnAccentFill : color).opacity(0.3), lineWidth: 3)
+                .frame(width: 16, height: 16)
+                .opacity(arcDraw)
             Circle()
                 .trim(from: 0, to: 0.28)
                 .stroke(polishing ? Color.brandOnAccentFill : color,
-                        style: StrokeStyle(lineWidth: 2.6, lineCap: .round))
+                        style: StrokeStyle(lineWidth: 3, lineCap: .round))
                 .frame(width: 16, height: 16)
                 .rotationEffect(.degrees(-90 + turn * 360))
                 .opacity(arcDraw)
@@ -203,11 +208,14 @@ private struct TranscribingBallReduced: View {
     var body: some View {
         ZStack {
             Circle()
-                .fill(polishing ? color : color.opacity(0.18))
+                .fill(polishing ? color : color.opacity(0.28))
+            Circle()
+                .stroke((polishing ? Color.brandOnAccentFill : color).opacity(0.3), lineWidth: 3)
+                .frame(width: 16, height: 16)
             Circle()
                 .trim(from: 0, to: 0.28)
                 .stroke(polishing ? Color.brandOnAccentFill : color,
-                        style: StrokeStyle(lineWidth: 2.6, lineCap: .round))
+                        style: StrokeStyle(lineWidth: 3, lineCap: .round))
                 .frame(width: 16, height: 16)
                 .rotationEffect(.degrees(-90))
             if polishing {
