@@ -197,9 +197,9 @@ struct SettingsView: View {
             SettingsGroup(title: "链接",
                           footer: "通用模式不会自动发送消息。终端场景尚未验证，不在兼容承诺内。") {
                 SettingsRow(icon: "curlybraces", title: "项目主页",
-                            subtitle: "github.com/taliove/mi-vibe") {
+                            subtitle: "github.com/taliove/MiVibe") {
                     Button("打开…") {
-                        NSWorkspace.shared.open(URL(string: "https://github.com/taliove/mi-vibe")!)
+                        NSWorkspace.shared.open(URL(string: "https://github.com/taliove/MiVibe")!)
                     }
                     .controlSize(.small)
                 }
@@ -207,7 +207,7 @@ struct SettingsView: View {
                 SettingsRow(icon: "doc.text", title: "发布说明",
                             subtitle: "查看本版本的变化与安装说明") {
                     Button("打开…") {
-                        NSWorkspace.shared.open(URL(string: "https://github.com/taliove/mi-vibe/releases/latest")!)
+                        NSWorkspace.shared.open(URL(string: "https://github.com/taliove/MiVibe/releases/latest")!)
                     }
                     .controlSize(.small)
                 }
