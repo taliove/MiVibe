@@ -128,17 +128,38 @@ extension SettingsView {
         inputMonitoringGranted = Permissions.hasInputMonitoring()
     }
 
+    private var takeoverStatusText: String {
+        if coordinator.keyTakeoverActive { return "生效中" }
+        guard let failure = coordinator.takeoverFailure else { return "未生效（等待遥控器连接）" }
+        return "未生效：\(failure.reason)"
+    }
+
+    private var takeoverFooter: String {
+        let normal = "接管后遥控器所有按键由 MiVibe 处置：映射键合成快捷键，未映射的键原样转发，语音键保留按住说话。关闭则系统恢复原生处理（只剩返回键取消录音）。"
+        guard coordinator.keyTakeover, !coordinator.keyTakeoverActive else { return normal }
+        switch coordinator.takeoverFailure {
+        case .notPermitted:
+            return "「输入监控」条目在但开关关着时这里也会显示已授权——请到系统设置把 MiVibe 的开关关掉再打开，App 激活时会自动重试接管。"
+        case .remapRejected:
+            return "系统拒绝为遥控器写入按键重映射，按键仍由系统原生处理。可点「重试」，或断开重连遥控器后再试。"
+        case .exclusiveAccess:
+            return "遥控器已被其他程序（如按键改键工具）占用，退出该程序后点「重试」。"
+        case nil:
+            return "等待遥控器连接：连上后自动接管。按键暂由系统原生处理。"
+        default:
+            return "按键仍由系统原生处理，返回键取消录音照常可用。可点「重试」。"
+        }
+    }
+
     var takeoverGroup: some View {
         SettingsGroup(title: "按键接管",
-                      footer: coordinator.keyTakeover && !coordinator.keyTakeoverActive
-                      ? "接管后遥控器所有按键由 MiVibe 处置。注意：「输入监控」条目在但开关关着时这里也会显示已授权——独占被拒请到系统设置把 MiVibe 的开关关掉再打开，App 激活时会自动重试接管。"
-                      : "接管后遥控器所有按键由 MiVibe 处置：映射键合成快捷键，未映射的键原样转发，语音键保留按住说话。关闭则系统恢复原生处理（只剩返回键取消录音）。") {
+                      footer: takeoverFooter) {
             SettingsRow(icon: "hand.raised.fill", title: "接管遥控器按键",
                         subtitle: "需要「输入监控」权限") {
                 Toggle("", isOn: Binding(
                     get: { coordinator.keyTakeover },
                     set: { on in
-                        // 独占需要「输入监控」权限，开启时顺手发起请求（未决定才会弹）。
+                        // 读取按键需要「输入监控」权限，开启时顺手发起请求（未决定才会弹）。
                         if on && !Permissions.hasInputMonitoring() {
                             Permissions.requestInputMonitoring()
                         }
@@ -164,13 +185,15 @@ extension SettingsView {
                             ? "checkmark.circle.fill" : "exclamationmark.triangle.fill",
                             iconColor: coordinator.keyTakeoverActive ? Color.green : Color.orange,
                             title: "接管状态",
-                            subtitle: coordinator.keyTakeoverActive ? "生效中" : "未生效（已退回仅监听）") {
+                            subtitle: takeoverStatusText) {
                     if !coordinator.keyTakeoverActive {
                         HStack(spacing: 8) {
-                            Button("重试") { coordinator.retryTakeover() }
+                            Button("重试") { coordinator.retryTakeover(manual: true) }
                                 .controlSize(.small)
-                            Button("去授权…") { Permissions.openInputMonitoringSettings() }
-                                .controlSize(.small)
+                            if coordinator.takeoverFailure?.isRetryable ?? true {
+                                Button("去授权…") { Permissions.openInputMonitoringSettings() }
+                                    .controlSize(.small)
+                            }
                         }
                     }
                 }

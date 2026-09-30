@@ -77,14 +77,77 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         #endif
     }
 
+    /// 正常退出：撤销遥控器重映射。系统调用的是 NSApplicationDelegateAdaptor 创建的
+    /// 实例，协调器挂在 `shared` 上，所以转过去。
+    func applicationWillTerminate(_ notification: Notification) {
+        MainActor.assumeIsolated { AppDelegate.shared.coordinator?.shutdown() }
+    }
+
+    /// SIGTERM（`pkill`、部署脚本、登出）不走 `applicationWillTerminate`，默认直接杀进程，
+    /// 会把遥控器留在重映射状态——接住信号，撤销后再退出。
+    @MainActor private var signalSources: [DispatchSourceSignal] = []
+
+    @MainActor
+    private func installTerminationSignalHandlers() {
+        for sig in [SIGTERM, SIGHUP, SIGINT] {
+            signal(sig, SIG_IGN)
+            let source = DispatchSource.makeSignalSource(signal: sig, queue: .main)
+            source.setEventHandler { [weak self] in
+                MainActor.assumeIsolated { self?.coordinator?.shutdown() }
+                exit(0)
+            }
+            source.resume()
+            signalSources.append(source)
+        }
+    }
+
+    #if DEBUG
+    /// 开发走查：MIVIBE_FLOAT_DEMO=1 启动后只轮播浮条各状态，**不挂协调器**——
+    /// 不连遥控器、不写按键重映射，可与已安装的 MiVibe 同时运行。
+    @MainActor private var demoPanel: FloatPanelController?
+
+    @MainActor
+    private func runFloatDemo() {
+        let panel = FloatPanelController()
+        demoPanel = panel
+        // MIVIBE_FLOAT_DEMO=dark / light 强制外观，其他值跟随系统。
+        switch ProcessInfo.processInfo.environment["MIVIBE_FLOAT_DEMO"] {
+        case "dark": panel.debugForceAppearance(.darkAqua)
+        case "light": panel.debugForceAppearance(.aqua)
+        default: break
+        }
+        let steps: [(FloatState, String)] = [
+            (.listening, ""), (.transcribing, ""), (.polishing, ""),
+            (.inserted, ""), (.notice, "没有听到内容，已忽略"),
+            (.attention, "焦点已改变，请选好输入框后点「输入到这里」"),
+        ]
+        let interval = Double(ProcessInfo.processInfo.environment["MIVIBE_FLOAT_DEMO_INTERVAL"] ?? "") ?? 2.5
+        for (index, step) in steps.enumerated() {
+            DispatchQueue.main.asyncAfter(deadline: .now() + interval * Double(index)) {
+                MainActor.assumeIsolated {
+                    panel.update(state: step.0, message: step.1)
+                    if step.0 == .listening { panel.setLevel(0.55) }
+                }
+            }
+        }
+    }
+    #endif
+
     /// 挂上协调器并开始驱动浮条。多次调用只生效一次。
     @MainActor
     func attach(_ coordinator: Coordinator) {
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["MIVIBE_FLOAT_DEMO"] != nil {
+            if demoPanel == nil { runFloatDemo() }
+            return
+        }
+        #endif
         guard self.coordinator == nil else { return }
         self.coordinator = coordinator
         let panel = FloatPanelController()
         self.panel = panel
         coordinator.onAudioLevel = { [weak panel] level in panel?.setLevel(level) }
+        installTerminationSignalHandlers()
         coordinator.start()
 
         // 事件驱动，不轮询。`objectWillChange` 在属性写入**之前**触发，所以推到

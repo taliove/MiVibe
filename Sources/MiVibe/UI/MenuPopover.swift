@@ -182,6 +182,9 @@ struct MenuPopover: View {
                     if phaseText(item.phase) != nil {
                         Button("输入到这里") { coordinator.resumeHere(id: item.id) }
                             .controlSize(.small)
+                    } else if item.phase == .needsAttention(.transcriptionFailed), coordinator.canRetry(id: item.id) {
+                        Button("重试") { coordinator.retry(id: item.id) }
+                            .controlSize(.small)
                     }
                     Button {
                         coordinator.discard(id: item.id)

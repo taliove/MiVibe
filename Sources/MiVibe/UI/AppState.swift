@@ -60,7 +60,7 @@ enum FloatState: String, CaseIterable, Identifiable {
         case .transcribing: return Color(red: 0.44, green: 0.31, blue: 0.86)
         case .polishing: return Color(red: 0.56, green: 0.36, blue: 0.96)
         case .inserted: return Color(red: 0.03, green: 0.55, blue: 0.38)
-        case .notice: return Color(red: 0.03, green: 0.55, blue: 0.38)
+        case .notice: return Color(red: 0.45, green: 0.47, blue: 0.52)
         case .attention: return Color(red: 0.78, green: 0.42, blue: 0.0)
         }
     }

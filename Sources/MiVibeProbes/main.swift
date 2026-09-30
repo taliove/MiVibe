@@ -90,6 +90,12 @@ if args.contains("--probe-seize") {
     exit(0)
 }
 
+if args.contains("--probe-remap") {
+    // 方案 A：按设备 UserKeyMapping 重映射代替 HID 独占。可选 --dst 0x... 换死键候选。
+    RemapProbe.run(arguments: args)
+    exit(0)
+}
+
 if args.contains("--probe-seize-voice") {
     SeizeProbe.run(voiceMode: true)
     exit(0)

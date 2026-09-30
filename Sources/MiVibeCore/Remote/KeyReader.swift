@@ -3,20 +3,26 @@ import IOKit.hid
 
 /// 遥控器实体按键读取（SPEC §2）。
 ///
-/// 两种打开方式：
-/// - **仅监听**（默认）：非独占打开，系统照常处理这些标准 HID 键盘事件，
-///   这里只是旁听，用于返回键取消等动作。
-/// - **接管**（`takeover: true`）：以 `kIOHIDOptionsTypeSeizeDevice` 独占打开，
-///   系统不再翻译报文，所有按键经 `KeyRouter` 裁决后由 `KeySynth` 重新发出。
+/// 始终以**非独占**方式打开 IOHIDManager 读取原始 usage；两种模式的差别在系统那一侧：
+/// - **仅监听**（默认）：系统照常处理这些标准 HID 键盘事件，这里只是旁听，
+///   用于返回键取消等动作。
+/// - **接管**（`takeover: true`）：对遥控器的事件服务写入按设备重映射
+///   （`RemoteKeyRemapper`），把它的键映射成死键，系统不再响应；所有按键经
+///   `KeyRouter` 裁决后由 `KeySynth` 重新发出。
 ///
-/// 独占是**持续争取**的，不是启动时一次性裁决：BLE 遥控器的连接晚于 App 启动是
-/// 常态，启动时 `IOHIDManagerCopyDevices` 多半为空。所以设备每次出现（匹配回调）
-/// 都重新尝试 seize，拿到才算数；拿不到之前按键照常仅监听，功能降级但不失联。
+/// 为什么不用 `kIOHIDOptionsTypeSeizeDevice`：遥控器是键盘类设备，IOHIDFamily 只许
+/// root 或带 Apple 私有授权的进程独占键盘，普通进程恒得 0xE00002C1（与输入监控无关）。
+///
+/// 重映射是**持续维护**的：BLE 遥控器连接晚于 App 启动是常态，事件服务随重连重建，
+/// 所以设备每次出现（匹配回调）都重新写入；服务比设备回调晚到时短暂重试。
+/// 监听打不开时绝不写重映射——否则系统不响应、MiVibe 又收不到，遥控器彻底失灵。
 public final class KeyReader {
     public static let vendorID = 0x2717
     public static let productID = 0x32B8
 
-    private static let seizeOptions = IOOptionBits(kIOHIDOptionsTypeSeizeDevice)
+    /// 设备出现而事件服务尚未就绪时的重试节奏。
+    private static let remapRetryDelay: TimeInterval = 0.5
+    private static let remapRetryLimit = 10
 
     /// 实测确认的按键。身份定义在 `RemoteButton`（纯逻辑，可脱离硬件测试）——
     /// 这里只做别名，`KeyReader.Key.up` 这样的写法继续可用。
@@ -27,22 +33,31 @@ public final class KeyReader {
     /// 这个标记是防御性的——路由层靠它保证 ⌘Z 不会连发。
     public var onKey: (@MainActor (Key, Bool, Bool) -> Void)?
 
-    /// 独占状态变化回调（拿到/失去独占时触发，参数为是否已独占）。
+    /// 接管状态变化回调（生效/失效时触发，参数为是否已接管）。
     public var onExclusiveChanged: (@MainActor (Bool) -> Void)?
 
-    /// 接管（独占）硬失败回调（manager 级打开失败，极少见），参数是给人看的原因。
-    public var onTakeoverFailed: (@MainActor (String) -> Void)?
+    /// 接管失败回调：监听打不开或重映射被拒时触发，
+    /// 同一次 `start` 内相同原因只报一次（设备反复出现不刷屏）。
+    public var onTakeoverFailed: (@MainActor (TakeoverFailure) -> Void)?
 
-    /// 当前是否独占着设备。false 时系统仍在处理原生按键，
-    /// 调用方绝不能自行合成/转发，否则每个键都会发生两次。
+    /// 最近一次接管失败的原因；接管生效或 `stop` 后清空。
+    /// 调用方据此判断重试有没有意义（见 `TakeoverFailure.isRetryable`）。
+    public private(set) var lastFailure: TakeoverFailure?
+
+    /// 接管是否生效：系统已不再处理遥控器的原生按键（重映射在位）。false 时系统
+    /// 仍在处理，调用方绝不能自行合成/转发，否则每个键都会发生两次。
+    /// 名字沿用独占时代，语义不变。
     public private(set) var isExclusive = false
 
     private var manager: IOHIDManager?
-    /// 用户意图：要不要独占。与实际是否拿到（`isExclusive`）分开——
-    /// 设备迟到、被系统暂持都是暂时的，意图不变，持续重试。
+    private let remapper = RemoteKeyRemapper(vendorID: KeyReader.vendorID, productID: KeyReader.productID)
+    /// 用户意图：要不要接管。与实际是否生效（`isExclusive`）分开——
+    /// 设备迟到、服务未就绪都是暂时的，意图不变，持续维护。
     private var wantExclusive = false
-    /// 已独占成功的设备（按对象身份）。BLE 重连后出现的是新对象，需要重新 seize。
-    private var seizedDevices: [ObjectIdentifier: IOHIDDevice] = [:]
+    /// 监听是否打开成功。失败时不写重映射（见类型注释）。
+    private var listening = false
+    /// 每次 `start` / `stop` 递增，让过期的延迟重试自行作废。
+    private var generation = 0
     /// 当前按住的键：同一个键未抬起又收到按下 → isRepeat。
     private var held: Set<RemoteButton> = []
 
@@ -51,6 +66,7 @@ public final class KeyReader {
     public func start(takeover: Bool = false) {
         guard manager == nil else { return }
         wantExclusive = takeover
+        generation += 1
         held.removeAll()
         let hid = IOHIDManagerCreate(kCFAllocatorDefault, 0)
         IOHIDManagerSetDeviceMatching(hid, [
@@ -65,92 +81,105 @@ public final class KeyReader {
             reader.handle(value)
         }, context)
 
-        // BLE 遥控器的断开重连是日常（SPEC §3）：设备每次出现都尝试 seize。
-        IOHIDManagerRegisterDeviceMatchingCallback(hid, { context, _, _, device in
+        // BLE 遥控器的断开重连是日常（SPEC §3）：设备每次出现都重写重映射。
+        IOHIDManagerRegisterDeviceMatchingCallback(hid, { context, _, _, _ in
             guard let context else { return }
             let reader = Unmanaged<KeyReader>.fromOpaque(context).takeUnretainedValue()
-            reader.seize(device)
+            reader.deviceAppeared()
         }, context)
-        IOHIDManagerRegisterDeviceRemovalCallback(hid, { context, _, _, device in
+        IOHIDManagerRegisterDeviceRemovalCallback(hid, { context, _, _, _ in
             guard let context else { return }
             let reader = Unmanaged<KeyReader>.fromOpaque(context).takeUnretainedValue()
-            reader.unseize(device)
+            reader.deviceRemoved()
         }, context)
 
         IOHIDManagerScheduleWithRunLoop(hid, CFRunLoopGetMain(), CFRunLoopMode.defaultMode.rawValue)
-
-        let options = takeover ? Self.seizeOptions : 0
-        let status = IOHIDManagerOpen(hid, options)
-        if takeover && status != kIOReturnSuccess {
-            // manager 级失败（权限不足等）：退回仅监听。设备到达回调仍会触发重试。
-            IOHIDManagerClose(hid, options)
-            IOHIDManagerOpen(hid, 0)
-            let reason = "HID 打开被拒（\(Self.hex(status))，需要「输入监控」权限）"
-            Log.chain.error("takeover failed: \(reason, privacy: .public)")
-            Task { @MainActor [onTakeoverFailed] in onTakeoverFailed?(reason) }
-        }
         manager = hid
-        seizeAllMatched()
+
+        let status = IOHIDManagerOpen(hid, 0)
+        listening = status == kIOReturnSuccess
+        if !listening {
+            Log.chain.error("HID listen open failed")
+            if takeover { reportFailure(TakeoverFailure(status: status)) }
+        }
+
+        if takeover && listening {
+            applyRemap(attempt: 0)
+        } else {
+            // 不接管（或监听不可用）：清掉上次崩溃可能遗留的重映射，把按键还给系统。
+            let result = remapper.remove()
+            if result.services > 0 && result.succeeded < result.services {
+                Log.chain.error("stale remap cleanup incomplete (\(result.succeeded)/\(result.services))")
+            }
+        }
     }
 
     public func stop() {
         guard let manager else { return }
-        IOHIDManagerClose(manager, wantExclusive ? Self.seizeOptions : 0)
+        generation += 1
+        if wantExclusive {
+            let result = remapper.remove()
+            Log.chain.notice("remap removed (\(result.succeeded)/\(result.services))")
+        }
+        IOHIDManagerClose(manager, 0)
         self.manager = nil
         wantExclusive = false
-        seizedDevices.removeAll()
+        listening = false
         held.removeAll()
-        if isExclusive {
-            isExclusive = false
-            notifyExclusiveChanged()
+        lastFailure = nil
+        setExclusive(false)
+    }
+
+    // MARK: - 重映射维护
+
+    private func deviceAppeared() {
+        guard wantExclusive, listening else { return }
+        applyRemap(attempt: 0)
+    }
+
+    private func deviceRemoved() {
+        let remaining = (manager.flatMap { IOHIDManagerCopyDevices($0) } as? Set<IOHIDDevice>)?.count ?? 0
+        if remaining == 0 { setExclusive(false) }
+    }
+
+    /// 写入重映射。事件服务可能比设备匹配回调晚到，找不到服务时短暂重试。
+    private func applyRemap(attempt: Int) {
+        guard wantExclusive, listening else { return }
+        let result = remapper.apply()
+        if result.succeeded > 0 {
+            if result.succeeded < result.services {
+                Log.chain.error("remap applied partially (\(result.succeeded)/\(result.services))")
+            }
+            Log.chain.notice("remap applied (\(result.succeeded)/\(result.services))")
+            setExclusive(true)
+        } else if result.services > 0 {
+            reportFailure(.remapRejected)
+        } else if attempt < Self.remapRetryLimit {
+            let token = generation
+            // KeyReader 只在主线程使用（HID 回调挂在主 run loop），延迟块也投递回主队列。
+            nonisolated(unsafe) weak var reader = self
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.remapRetryDelay) {
+                guard let reader, reader.generation == token else { return }
+                reader.applyRemap(attempt: attempt + 1)
+            }
         }
     }
 
-    // MARK: - 独占管理
-
-    /// 对当前匹配到的所有设备尝试 seize。
-    private func seizeAllMatched() {
-        guard wantExclusive, let manager,
-              let devices = IOHIDManagerCopyDevices(manager) as? Set<IOHIDDevice>
-        else { return }
-        for device in devices { seize(device) }
+    private func reportFailure(_ failure: TakeoverFailure) {
+        Log.chain.error("takeover failed: \(failure.reason, privacy: .public)")
+        guard failure != lastFailure else { return }
+        lastFailure = failure
+        Task { @MainActor [onTakeoverFailed] in onTakeoverFailed?(failure) }
     }
 
-    private func seize(_ device: IOHIDDevice) {
-        guard wantExclusive else { return }
-        let id = ObjectIdentifier(device)
-        guard seizedDevices[id] == nil else { return }
-        let status = IOHIDDeviceOpen(device, Self.seizeOptions)
-        if status == kIOReturnSuccess {
-            seizedDevices[id] = device
-            Log.chain.notice("seized HID device (\(self.seizedDevices.count) held)")
-        } else {
-            Log.chain.error("seize failed: \(Self.hex(status), privacy: .public)")
-        }
-        updateExclusive()
-    }
-
-    /// IOReturn 是有符号 Int32，`String(radix:)` 对负数会输出 "0x-1ffffd3f" 这种
-    /// 没法查的格式；按位解释为 UInt32 才是文档里的 0xE00002C1。
-    static func hex(_ status: IOReturn) -> String {
-        String(format: "0x%08X", UInt32(bitPattern: status))
-    }
-
-    private func unseize(_ device: IOHIDDevice) {
-        seizedDevices.removeValue(forKey: ObjectIdentifier(device))
-        updateExclusive()
-    }
-
-    private func updateExclusive() {
-        let now = !seizedDevices.isEmpty
+    private func setExclusive(_ now: Bool) {
         guard now != isExclusive else { return }
         isExclusive = now
+        if now { lastFailure = nil }
+        // 抬起没到就切换模式时，残留的按住状态会让下一次按下被误判为重复。
+        held.removeAll()
         Log.chain.notice("takeover now \(now ? "active" : "inactive", privacy: .public)")
-        notifyExclusiveChanged()
-    }
-
-    private func notifyExclusiveChanged() {
-        let value = isExclusive
+        let value = now
         Task { @MainActor [onExclusiveChanged] in onExclusiveChanged?(value) }
     }
 

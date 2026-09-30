@@ -138,17 +138,42 @@ public struct InputQueue: Equatable {
         }
     }
 
-    /// 转写成功。
+    /// 转写成功。转写途中已失焦的项（空文字的 `targetLost` 占位）把文字补进去，
+    /// 仍保持暂存、等用户显式恢复。
     public mutating func transcriptionSucceeded(id: Int, text: String) {
         update(id) { phase in
-            if case .transcribing = phase { phase = .ready(text) }
+            switch phase {
+            case .transcribing: phase = .ready(text)
+            case .needsAttention(.targetLost(let old)) where old.isEmpty:
+                phase = .needsAttention(.targetLost(text: text))
+            default: break
+            }
+        }
+    }
+
+    /// 没有产出的录音（误触、按住没说话、转写为空）：直接出队。
+    ///
+    /// 不能落成 `.ready("")` 或空的 `targetLost`——那是一条没有可恢复内容的阻塞项，
+    /// 会占住容量、挡住后面的句子（真机日志里的卡死就是这么来的）。
+    /// 已有文字的项不受影响。
+    public mutating func transcriptionEmpty(id: Int) {
+        guard let item = items.first(where: { $0.id == id }) else { return }
+        switch item.phase {
+        case .listening, .transcribing, .needsAttention(.targetLost(text: "")):
+            items.removeAll { $0.id == id }
+        default:
+            break
         }
     }
 
     /// 转写失败：保留录音待重试，并阻塞其后的自动输入。
     public mutating func transcriptionFailed(id: Int) {
         update(id) { phase in
-            if case .transcribing = phase { phase = .needsAttention(.transcriptionFailed) }
+            switch phase {
+            case .transcribing, .needsAttention(.targetLost(text: "")):
+                phase = .needsAttention(.transcriptionFailed)
+            default: break
+            }
         }
     }
 

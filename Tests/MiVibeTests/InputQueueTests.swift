@@ -145,3 +145,78 @@ enum InputQueueTests {
         }
     }
 }
+
+/// 空结果与卡死修复：空转写不得变成占位的「待处理」。
+enum InputQueueEmptyResultTests {
+    static func run() {
+        Harness.suite("空转写直接出队，不阻塞后续") {
+            var q = InputQueue()
+            guard case .started(let first) = q.startRecording() else {
+                Harness.expect(false, "应可开始"); return
+            }
+            q.finishRecording(id: first)
+            q.transcriptionEmpty(id: first)
+            Harness.expect(q.items.isEmpty, "空转写出队")
+            Harness.expect(!q.hasBlocker, "不留阻塞项")
+
+            guard case .started = q.startRecording(), case .started = q.startRecording() else {
+                Harness.expect(false, "空转写不占容量：之后仍能连录两句"); return
+            }
+            Harness.expect(true, "空转写不占容量：之后仍能连录两句")
+        }
+
+        Harness.suite("空转写不越过前面的项") {
+            var q = InputQueue()
+            guard case .started(let first) = q.startRecording() else { return }
+            q.finishRecording(id: first)
+            guard case .started(let second) = q.startRecording() else { return }
+            q.finishRecording(id: second)
+            q.transcriptionEmpty(id: second)
+            Harness.expectEqual(q.items.map(\.id), [first], "只移除空的那条，前一条原样保留")
+            q.transcriptionEmpty(id: first)
+            Harness.expect(q.items.isEmpty, "两条都空 → 队列清空")
+        }
+
+        Harness.suite("录音阶段也可直接判空") {
+            var q = InputQueue()
+            guard case .started(let id) = q.startRecording() else { return }
+            q.transcriptionEmpty(id: id)
+            Harness.expect(q.items.isEmpty, "按住未说话、松手即丢（不经转写）")
+        }
+
+        Harness.suite("已有文字的项不受判空影响") {
+            var q = InputQueue()
+            guard case .started(let id) = q.startRecording() else { return }
+            q.finishRecording(id: id)
+            q.transcriptionSucceeded(id: id, text: "你好")
+            q.transcriptionEmpty(id: id)
+            Harness.expectEqual(q.injectable?.text, "你好", "ready 项不会被误删")
+        }
+
+        Harness.suite("转写途中失焦：结果回来后补进占位项") {
+            var q = InputQueue()
+            guard case .started(let id) = q.startRecording() else { return }
+            q.finishRecording(id: id)
+            q.targetLost(id: id)
+            q.transcriptionSucceeded(id: id, text: "迟到的文字")
+            Harness.expectEqual(q.pendingTexts, ["迟到的文字"], "文字进入待处理，可「输入到这里」")
+            q.resume(id: id)
+            Harness.expectEqual(q.injectable?.text, "迟到的文字", "恢复后可输入")
+
+            var q2 = InputQueue()
+            guard case .started(let id2) = q2.startRecording() else { return }
+            q2.finishRecording(id: id2)
+            q2.targetLost(id: id2)
+            q2.transcriptionEmpty(id: id2)
+            Harness.expect(q2.items.isEmpty, "失焦占位 + 空转写 → 出队，不留无法恢复的阻塞")
+
+            var q3 = InputQueue()
+            guard case .started(let id3) = q3.startRecording() else { return }
+            q3.finishRecording(id: id3)
+            q3.targetLost(id: id3)
+            q3.transcriptionFailed(id: id3)
+            Harness.expectEqual(q3.items.first?.phase, .needsAttention(.transcriptionFailed),
+                                "失焦占位 + 转写失败 → 转写失败（可重试）")
+        }
+    }
+}

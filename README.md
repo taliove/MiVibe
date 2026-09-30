@@ -83,7 +83,7 @@ Scripts/deploy.sh release
 | 蓝牙 | 接收遥控器的语音数据。 |
 | 辅助功能 | 读取目标输入框、直接写入文字。 |
 | 事件投递 | 在需要时模拟粘贴和按键快捷键，由应用预检并请求。 |
-| 输入监控 | 独占接管遥控器按键；授权后若未生效，退出并重新启动 MiVibe。 |
+| 输入监控 | 按键接管时读取遥控器按键。接管会对这支遥控器写入按键重映射，让系统不再响应；关闭接管或退出 MiVibe 时撤销。若 MiVibe 异常退出后遥控器按键失灵，重新打开 MiVibe 或断开重连遥控器即可恢复。 |
 
 ## 你的声音，走哪条路
 
@@ -163,7 +163,7 @@ To rebuild and install, use `Scripts/deploy.sh release`. It closes MiVibe and re
 
 1. Pair the remote in System Settings → Bluetooth.
 2. Open MiVibe Settings → Recognition (识别). Configure a Doubao API Key for resource `volc.seedasr.sauc.duration`, or download and select a local model.
-3. Grant Bluetooth and Accessibility access, plus event posting when requested. Key takeover also requires Input Monitoring; restart the app if the grant has not taken effect.
+3. Grant Bluetooth and Accessibility access, plus event posting when requested. Key takeover also requires Input Monitoring to read the remote; it applies a per-device key remap so macOS stops acting on the remote's keys, and removes it when takeover is turned off or MiVibe quits. If the remote's keys stop working after a crash, relaunch MiVibe or reconnect the remote.
 4. Focus a text field, hold the voice key, speak, and release. Configure optional rewriting under 改写, enable key takeover under 遥控器, and edit key mappings under 按键映射.
 
 Initial local recognition may be slower while the model loads and GPU kernels compile. Pending results are available from the menu bar; choose “输入到这里” to insert at the field you select.

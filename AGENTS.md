@@ -63,7 +63,7 @@ CI 顺序见 `.github/workflows/ci.yml`：拉取依赖 → 构建 → 测试 →
 | `Sources/MiVibeCore/Audio/` | ADPCM 解码与音量计算。 |
 | `Sources/MiVibeCore/ASR/` | 识别接口、豆包协议、本地引擎、模型下载与关键词纠正。 |
 | `Sources/MiVibeCore/Rewrite/` | 模式、服务商配置、LLM 请求与原文回退。 |
-| `Sources/MiVibeCore/Remote/` | CoreBluetooth 音频与 IOHIDManager 按键接管。 |
+| `Sources/MiVibeCore/Remote/` | CoreBluetooth 音频、IOHIDManager 按键读取，以及接管用的按设备重映射（`RemoteKeyRemapper`）。 |
 | `Sources/MiVibeCore/Input/` | 焦点快照、AX 注入、剪贴板降级与快捷键合成。 |
 | `Sources/MiVibeProbes/` | 独立诊断入口，与应用共享 Core。 |
 | `Tests/MiVibeTests/` | 可脱离硬件运行的断言测试。 |
@@ -79,7 +79,7 @@ RemoteManager：AUDIO_START → 音频解码 → AUDIO_STOP
   → KeywordCorrections → InputQueue
   → drain：可选 RewriteEngine → 重新校验焦点 → TextInjector
 
-KeyReader：取得 HID 独占 → KeyRouter
+KeyReader：非独占读取 HID + 按设备重映射压住系统响应 → KeyRouter
   → KeySynth（快捷键 / 原生键转发）或 MiVibe 应用内动作
 ```
 
@@ -98,7 +98,7 @@ KeyReader：取得 HID 独占 → KeyRouter
 - 录音由设备自发的 `AUDIO_START` 开始，以 `AUDIO_STOP` 收口。HID 松开之后仍可能有尾帧，不能用它截断录音，也不能用 HID 语音键事件主动开启录音。
 - 固件 2671 的 `GET_CAPS` 可能非标准，codec 必须由 `AUDIO_START` 字段再次确认。云端识别接收解码后的 PCM，不能上传原始 ADPCM。
 - `InputQueue.capacity` 当前为 2。保持录制顺序，阻塞项不能被后续结果越过；重试、恢复与丢弃是显式操作。
-- `KeyReader.isExclusive == false` 时，不合成或转发按键，避免与系统原生事件重复。设备重新出现时继续尝试独占；未映射键的按下 / 抬起须成对转发。
+- `KeyReader.isExclusive == false`（重映射未在位）时，不合成或转发按键，避免与系统原生事件重复。接管不用 HID 独占（键盘类设备非 root 必被拒），而是对遥控器写 `UserKeyMapping`；设备重新出现时重写，监听打不开时不得写入，关闭接管、退出与 SIGTERM 时撤销。未映射键的按下 / 抬起须成对转发。
 - 模式选单打开时临时捕获方向、确认、返回键，不能同时执行这些键的普通映射。
 
 ### 识别、改写与注入

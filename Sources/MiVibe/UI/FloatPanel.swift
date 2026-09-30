@@ -57,7 +57,7 @@ final class FloatPanel: NSPanel {
     func positionBottomCenter() {
         guard let screen = NSScreen.main else { return }
         let visible = screen.visibleFrame
-        setFrameOrigin(NSPoint(x: visible.midX - frame.width / 2, y: visible.minY + 22))
+        setFrameOrigin(NSPoint(x: visible.midX - frame.width / 2, y: visible.minY + 22 - FloatSurface.shadowInset))
     }
 }
 
@@ -80,6 +80,13 @@ final class FloatPanelController {
         panel.contentView = NSHostingView(rootView: FloatBarView(model: model, level: level))
         panel.positionBottomCenter()
     }
+
+    #if DEBUG
+    /// 开发走查：强制浅色/深色外观（nil 跟随系统）。
+    func debugForceAppearance(_ name: NSAppearance.Name?) {
+        panel.appearance = name.flatMap(NSAppearance.init(named:))
+    }
+    #endif
 
     /// 推入实时音量 0…1。由音频回调以约 66 Hz 驱动。
     func setLevel(_ value: Double) {
@@ -132,7 +139,8 @@ final class FloatPanelController {
 
     private func showPanel() {
         // 选单比状态横条高：按条目数撑开。宽度跟随屏幕可用区，窄屏不溢出。
-        let height: CGFloat = model.picker.map { CGFloat($0.items.count) * 34 + 44 } ?? 56
+        let content: CGFloat = model.picker.map { CGFloat($0.items.count) * 34 + 44 } ?? FloatSurface.barHeight
+        let height = content + FloatSurface.shadowInset * 2
         model.barWidth = Self.fittingBarWidth()
         panel.setContentSize(NSSize(width: model.barWidth, height: height))
         panel.positionBottomCenter()
@@ -166,38 +174,100 @@ struct FloatBarView: View {
     private var state: FloatState { model.state ?? .listening }
 
     var body: some View {
+        // 面板本身按最大宽度开、完全透明且不接收鼠标；可见的条按内容收缩并居中，
+        // 短提示不再拖着一条大半空着的 560pt 横条。
         Group {
             if let picker = model.picker {
-                ModePickerView(picker: picker, width: model.barWidth)
+                ModePickerView(picker: picker, width: min(model.barWidth, 360))
+                    .floatSurface(tint: nil)
             } else {
-                HStack(spacing: 12) {
+                HStack(spacing: 10) {
                     StatusBall(state: state, level: level.level, reduceMotion: reduceMotion)
                         .frame(width: 40, height: 40)
 
                     Text(state.label)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.primary)
+                        .fixedSize()
 
-                    Text(detail)
-                        .font(.system(size: 13))
-                        .foregroundStyle(Color(white: 0.84))
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-
-                    Spacer(minLength: 0)
+                    if !detail.isEmpty {
+                        Text(detail)
+                            .font(.system(size: 13))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
                 }
-                .padding(.horizontal, 14)
-                .frame(width: model.barWidth, height: 56)
+                .padding(.leading, 4)
+                .padding(.trailing, 16)
+                .frame(height: FloatSurface.barHeight)
+                .frame(maxWidth: model.barWidth - FloatSurface.shadowInset * 2)
+                .fixedSize(horizontal: true, vertical: false)
+                .floatSurface(tint: state.color)
+                .animation(.easeOut(duration: 0.18), value: state)
             }
         }
-        .background(.black.opacity(0.86), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .shadow(color: .black.opacity(0.28), radius: 18, y: 8)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     /// 已输入只说"写好了"，不再把刚上屏的文字复述一遍。
     private var detail: String {
         if state == .inserted || model.message.isEmpty { return state.hint }
         return model.message
+    }
+}
+
+// MARK: - 表面
+//
+// 浮条盖在任意应用之上：深色终端、浅色文档、花哨网页都有。原先的 86% 纯黑条
+// 在深色背景上几乎没有边界。改为系统毛玻璃（跟随浅色/深色外观）+ 发丝描边 +
+// 状态色描边：底色随系统，描边保证在任何背景上都有清楚的轮廓，颜色同时说明状态。
+
+enum FloatSurface {
+    static let barHeight: CGFloat = 44
+    static let cornerRadius: CGFloat = 22
+    /// 给阴影留的透明边距（面板比可见的条大这么多）。
+    static let shadowInset: CGFloat = 12
+}
+
+/// 窗口背后的实时模糊。SwiftUI 的 Material 在透明无边框面板里拿不到桌面内容，
+/// 必须用 `.behindWindow` 的 NSVisualEffectView。
+private struct BehindWindowBlur: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = .popover
+        view.blendingMode = .behindWindow
+        view.state = .active
+        return view
+    }
+
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
+}
+
+private struct FloatSurfaceModifier: ViewModifier {
+    let tint: Color?
+    @Environment(\.colorScheme) private var scheme
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: FloatSurface.cornerRadius, style: .continuous)
+        content
+            .background(BehindWindowBlur().clipShape(shape))
+            .overlay(
+                // 外圈：状态色（无状态时用中性发丝线），保证轮廓。
+                shape.strokeBorder((tint ?? Color.primary).opacity(tint == nil ? 0.14 : 0.55), lineWidth: 1)
+            )
+            .overlay(
+                // 内圈高光：让玻璃边缘在深色背景上也立得住。
+                shape.inset(by: 1)
+                    .strokeBorder(Color.white.opacity(scheme == .dark ? 0.08 : 0.5), lineWidth: 0.5)
+            )
+            .shadow(color: .black.opacity(scheme == .dark ? 0.45 : 0.18), radius: 10, y: 4)
+    }
+}
+
+private extension View {
+    func floatSurface(tint: Color?) -> some View {
+        modifier(FloatSurfaceModifier(tint: tint))
     }
 }
 
@@ -212,21 +282,25 @@ private struct ModePickerView: View {
             ForEach(Array(picker.items.enumerated()), id: \.element.id) { index, item in
                 HStack(spacing: 8) {
                     Image(systemName: index == picker.highlight ? "checkmark.circle.fill" : "circle")
-                        .foregroundStyle(index == picker.highlight ? .white : Color(white: 0.45))
+                        .foregroundStyle(index == picker.highlight ? Color.white : Color.secondary)
                         .font(.system(size: 13))
                     Text(item.name)
                         .font(.system(size: 14, weight: index == picker.highlight ? .semibold : .regular))
-                        .foregroundStyle(index == picker.highlight ? .white : Color(white: 0.75))
+                        .foregroundStyle(index == picker.highlight ? Color.white : Color.primary)
                     Spacer()
                 }
-                .padding(.horizontal, 14)
+                .padding(.horizontal, 12)
                 .frame(height: 34)
-                .background(index == picker.highlight ? Color.white.opacity(0.14) : .clear)
+                .background(
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .fill(index == picker.highlight ? Color.accentColor : .clear)
+                )
+                .padding(.horizontal, 6)
             }
             Text("↑↓ 选择 · 确认键切换 · 返回键关闭")
                 .font(.system(size: 11))
-                .foregroundStyle(Color(white: 0.55))
-                .padding(.horizontal, 14)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 18)
                 .frame(height: 28)
         }
         .padding(.vertical, 8)
@@ -264,8 +338,10 @@ struct StatusBall: View {
                     ListeningBall(color: state.color, level: level, time: time)
                 case .transcribing, .polishing:
                     TranscribingBall(color: state.color, time: time)
-                case .inserted, .notice:
+                case .inserted:
                     InsertedBall(color: state.color)
+                case .notice:
+                    NoticeBall(color: state.color)
                 case .attention:
                     AttentionBall(color: state.color, time: time)
                 }
@@ -364,6 +440,24 @@ private struct InsertedBall: View {
             drawn = 0
             withAnimation(.easeOut(duration: 0.35)) { drawn = 1 }
         }
+    }
+}
+
+/// 提示：静止的信息点。提示可能是"已切换模式"也可能是"没听到内容"，
+/// 不能借用已输入的对勾，否则"已忽略"会被读成"成功了"。
+private struct NoticeBall: View {
+    let color: Color
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(color.opacity(0.18))
+                .frame(width: 22, height: 22)
+            Image(systemName: "info")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(color)
+        }
+        .frame(width: 40, height: 40)
     }
 }
 

@@ -4,7 +4,7 @@ import IOKit.hid
 
 /// 权限预检（SPEC §5）。
 ///
-/// 文本注入需要两项：辅助功能与事件投递。按键接管（HID 独占）另需
+/// 文本注入需要两项：辅助功能与事件投递。按键接管（读取遥控器 HID）另需
 /// 「输入监控」。不申请屏幕录制、自动化。
 public enum Permissions {
     /// 辅助功能是否已授权。`prompt: true` 会异步弹系统提示——
@@ -26,11 +26,11 @@ public enum Permissions {
         _ = CGRequestPostEventAccess()
     }
 
-    /// 输入监控（HID 独占接管需要）。`request: true` 未决定时弹系统提示。
+    /// 输入监控（按键接管读取遥控器 HID 需要）。`request: true` 未决定时弹系统提示。
     ///
     /// 注意：这个检查返回的是"条目存在且已授予"。系统设置里**条目在但开关关着**
-    /// 的情况下也可能显示已授权——此时独占会被拒（kIOReturnNotPermitted）。
-    /// 以独占是否真拿到为准，这个值只做引导展示。
+    /// 的情况下也可能显示已授权——此时 HID 打开会被拒（kIOReturnNotPermitted）。
+    /// 以接管是否真生效为准，这个值只做引导展示。
     public static func hasInputMonitoring() -> Bool {
         IOHIDCheckAccess(kIOHIDRequestTypeListenEvent) == kIOHIDAccessTypeGranted
     }

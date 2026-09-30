@@ -22,16 +22,19 @@ final class Coordinator: ObservableObject {
     /// 启动时 `normalized()`：清死键，并把旧版整表克隆配置迁移为覆盖表（继承模型）。
     @Published private(set) var keyMap: KeyMapTable
 
-    /// 是否独占接管遥控器按键。关掉时 `KeyReader` 退回仅监听，
+    /// 是否接管遥控器按键（按设备重映射，见 `KeyReader`）。关掉时 `KeyReader` 退回仅监听，
     /// 映射与转发全部停用，只剩返回键取消（原生按键由系统自己处理）。
     @Published private(set) var keyTakeover: Bool
 
-    /// 接管是否真的拿到了设备。用户开着开关但独占失败（权限不足/设备被持有）
-    /// 时两者不一致——设置页据此显示"未生效"并提供重试入口。
+    /// 接管是否真的生效（遥控器重映射在位）。用户开着开关但接管失败（缺输入监控 /
+    /// 重映射被拒 / 遥控器未连接）时两者不一致——设置页据此显示"未生效"并提供重试入口。
     @Published private(set) var keyTakeoverActive = false
 
+    /// 最近一次接管失败的原因（未生效时设置页据此说明原因、决定是否给重试入口）。
+    @Published private(set) var takeoverFailure: TakeoverFailure?
+
     /// 当前按住的遥控器按键（设置页映射图「按下即亮」回显）。按下置位、抬起清除；
-    /// 仅监听模式下事件照常上报，回显不依赖独占是否成功。
+    /// 仅监听模式下事件照常上报，回显不依赖接管是否生效。
     @Published private(set) var pressedButton: RemoteButton?
 
     // MARK: - 识别引擎
@@ -90,6 +93,9 @@ final class Coordinator: ObservableObject {
 
     /// 每条录音按下时的焦点快照，注入前用于比对。
     private var snapshots: [Int: TextInjector.Snapshot] = [:]
+    /// 尚未转写成功的录音 PCM（内存中），供「重试」重新转写。转写成功、判空、
+    /// 丢弃或取消后释放。
+    private var recordings: [Int: Data] = [:]
     private var activeID: Int?
 
     /// 队列里还有没处理完的内容——菜单栏图标据此显示角标。
@@ -124,7 +130,7 @@ final class Coordinator: ObservableObject {
         keyTakeoverActive = keys.isExclusive
         Log.chain.notice("start: takeover=\(self.keyTakeover) exclusive=\(self.keys.isExclusive) asr=\(self.asrEngine.rawValue) mode=\(self.rewrite.effectiveActiveMode)")
         let access = IOHIDCheckAccess(kIOHIDRequestTypeListenEvent)
-        Log.chain.notice("listenEvent access raw=\(access.rawValue) (0=unknown 1=denied 3=granted)")
+        Log.chain.notice("listenEvent access raw=\(access.rawValue) (0=granted 1=denied 2=unknown)")
 
         // 接管开着但没输入监控权限：主动发起系统请求，别等用户发现设置页。
         if keyTakeover && !Permissions.hasInputMonitoring() {
@@ -152,6 +158,13 @@ final class Coordinator: ObservableObject {
             case .bluetoothUnavailable: link = .unpaired
             case .searching, .connecting: link = .pairedOffline
             case .negotiating, .ready, .recording: link = .connected
+            }
+            // 录音途中断连：AUDIO_STOP 永远不会来了，不收口的话浮条停在「正在听」、
+            // 队列白占一格。断连时 RemoteManager 已清空缓冲，这段录音无法挽回。
+            if let id = activeID, state == .searching || state == .connecting || state == .bluetoothUnavailable {
+                Log.chain.error("recording id=\(id) interrupted by disconnect")
+                activeID = nil
+                dropEmpty(id: id, message: "遥控器断开，录音已中断")
             }
         }
 
@@ -192,8 +205,15 @@ final class Coordinator: ObservableObject {
         remote.onRecordingFinish = { [weak self] recording in
             guard let self, let id = activeID else { return }
             activeID = nil
+            let peak = RecordingTriage.peakWindowDB(pcm: recording.pcm)
+            Log.chain.notice("AUDIO_STOP id=\(id) pcm=\(recording.pcm.count)B peak=\(String(format: "%.1f", peak), privacy: .public)dBFS")
+            // 误触或按住没说话：不送转写，免得浮条在「正在转写」停好几秒、空结果再占一格队列。
+            guard RecordingTriage.classify(pcm: recording.pcm) == .speech else {
+                dropEmpty(id: id, message: "没有听到内容，已忽略")
+                return
+            }
             queue.finishRecording(id: id)
-            Log.chain.notice("AUDIO_STOP id=\(id) pcm=\(recording.pcm.count)B")
+            recordings[id] = recording.pcm
             float = .transcribing
             transcribe(id: id, pcm: recording.pcm)
         }
@@ -208,21 +228,25 @@ final class Coordinator: ObservableObject {
     }
 
     private func wireKeys() {
-        keys.onTakeoverFailed = { [weak self] reason in
+        keys.onTakeoverFailed = { [weak self] failure in
             guard let self else { return }
             keyTakeoverActive = false
+            takeoverFailure = failure
             float = .attention
-            lastMessage = "按键接管失败（\(reason)），已退回仅监听"
-            // 再发起一次授权请求：`hasInputMonitoring()` 会被失配的旧 TCC 条目
-            // 骗成"已授权"（条目在但身份对不上），启动时的预检因此可能漏弹授权框。
-            // 失败这一刻是确凿的反例，补一次请求——系统认为已授权时这是 no-op。
-            Permissions.requestInputMonitoring()
+            lastMessage = "按键接管失败：\(failure.reason)，已退回仅监听"
+            // 只有确属缺授权才补一次授权请求：`hasInputMonitoring()` 会被失配的旧
+            // TCC 条目骗成"已授权"，启动时的预检可能漏弹授权框。其他原因（尤其是
+            // 键盘类设备的特权限制）与输入监控无关，再请求只会误导用户。
+            if failure.needsInputMonitoring {
+                Permissions.requestInputMonitoring()
+            }
         }
 
-        // 独占是持续争取的：设备连上才拿得到。状态变化实时反映给设置页。
+        // 接管是持续维护的：设备连上才写得进重映射。状态变化实时反映给设置页。
         keys.onExclusiveChanged = { [weak self] active in
             guard let self else { return }
             keyTakeoverActive = active
+            if active { takeoverFailure = nil }
         }
 
         keys.onKey = { [weak self] key, isDown, isRepeat in
@@ -245,7 +269,7 @@ final class Coordinator: ObservableObject {
         }
     }
 
-    /// 独占模式下的按键路由：裁决在 `KeyRouter`（纯逻辑），执行在这里。
+    /// 接管模式下的按键路由：裁决在 `KeyRouter`（纯逻辑），执行在这里。
     private func route(_ key: RemoteButton, isDown: Bool, isRepeat: Bool) {
         // 前台应用决定用哪张映射表。MiVibe 自身是 accessory 应用，不抢前台，
         // 所以这里拿到的就是用户正在输入的那个应用。
@@ -278,6 +302,7 @@ final class Coordinator: ObservableObject {
     private func cancelNewestActive() {
         if let cancelled = queue.cancelNewestActive() {
             snapshots[cancelled] = nil
+            recordings[cancelled] = nil
             rewrittenTexts[cancelled] = nil
             if activeID == cancelled { activeID = nil }
             float = nil
@@ -522,23 +547,36 @@ final class Coordinator: ObservableObject {
         guard on != keyTakeover else { return }
         keyTakeover = on
         persist()
-        keys.stop()
-        keys.start(takeover: on)
-        keyTakeoverActive = keys.isExclusive
+        restartKeys(takeover: on)
     }
 
-    /// 独占失败后重试接管（用户刚在系统设置里授完权的场景）。
+    /// 接管失败后重试（用户刚在系统设置里授完权的场景）。
     /// 没权限时直接提示，别重启按键通道白跑一趟（自动重试也因此静默跳过）。
-    func retryTakeover() {
+    /// 上次失败属于重试改变不了的系统限制时，只有用户手动点「重试」才再试。
+    func retryTakeover(manual: Bool = false) {
         guard keyTakeover, !keys.isExclusive else { return }
+        if let failure = takeoverFailure, !failure.isRetryable, !manual { return }
         guard Permissions.hasInputMonitoring() else {
             lastMessage = "缺少「输入监控」权限，请先在系统设置中授权"
             return
         }
-        keys.stop()
-        keys.start(takeover: true)
-        keyTakeoverActive = keys.isExclusive
+        restartKeys(takeover: true)
         if keyTakeoverActive { lastMessage = "按键接管已生效" }
+    }
+
+    /// App 退出前调用：撤销遥控器重映射，把按键还给系统。
+    /// 漏掉的话（崩溃、强杀）遥控器按键会失灵，直到下次启动时 `KeyReader.start` 清理。
+    func shutdown() {
+        keys.stop()
+    }
+
+    /// 重启按键通道。失败原因由 `onTakeoverFailed` 异步回填，这里先按同步结果同步状态。
+    private func restartKeys(takeover: Bool) {
+        keys.stop()
+        takeoverFailure = nil
+        keys.start(takeover: takeover)
+        keyTakeoverActive = keys.isExclusive
+        if let failure = keys.lastFailure { takeoverFailure = failure }
     }
 
     private func mutateKeyMap(_ transform: (inout KeyMapTable) -> Void) {
@@ -580,13 +618,14 @@ final class Coordinator: ObservableObject {
             provider = w
         }
 
+        let timeout = RecordingTriage.transcribeTimeout(pcmBytes: pcm.count)
         Task { [weak self] in
             guard let self else { return }
             do {
                 var options = DoubaoClient.Options()
                 options.enableNonstream = enableNonstream
                 await doubao.setProviderOptions(options)
-                let text = try await provider.transcribe(pcm: pcm)
+                let text = try await Self.transcribe(pcm: pcm, with: provider, timeout: timeout)
                 // 关键词纠正：转写完成后立即做确定性替换（两个引擎都生效）。
                 // 队列与待处理列表存的就是纠正后的文本——它是"识别结果"的一部分，
                 // 不是改写（改写另由 RewriteEngine 在注入前做）。
@@ -596,6 +635,11 @@ final class Coordinator: ObservableObject {
                 }
                 Log.chain.notice("transcribed id=\(id) engine=\(self.asrEngine.rawValue) chars=\(corrected.count)")
                 await MainActor.run {
+                    if RecordingTriage.isEmptyTranscript(corrected) {
+                        self.dropEmpty(id: id, message: "没有识别到文字，已忽略")
+                        return
+                    }
+                    self.recordings[id] = nil
                     self.queue.transcriptionSucceeded(id: id, text: corrected)
                     self.drain()
                 }
@@ -607,6 +651,52 @@ final class Coordinator: ObservableObject {
                     self.lastMessage = error.localizedDescription
                 }
             }
+        }
+    }
+
+    /// 转写整体超时。本地引擎是阻塞 C 调用、取消不掉，超时后它的结果会晚到，
+    /// 那时该项已是「转写失败」，`transcriptionSucceeded` 对它是 no-op。
+    private nonisolated static func transcribe(pcm: Data, with provider: any ASRProvider,
+                                               timeout: TimeInterval) async throws -> String {
+        try await withThrowingTaskGroup(of: String.self) { group in
+            group.addTask { try await provider.transcribe(pcm: pcm) }
+            group.addTask {
+                try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+                throw TranscribeTimeout(seconds: timeout)
+            }
+            let first = try await group.next()!
+            group.cancelAll()
+            return first
+        }
+    }
+
+    private struct TranscribeTimeout: LocalizedError {
+        let seconds: TimeInterval
+        var errorDescription: String? { "转写超时（\(Int(seconds)) 秒），可在菜单里重试" }
+    }
+
+    /// 没有产出的录音出队，并让浮条反映队列里剩下的状态。
+    private func dropEmpty(id: Int, message: String) {
+        queue.transcriptionEmpty(id: id)
+        snapshots[id] = nil
+        recordings[id] = nil
+        Log.chain.notice("dropped empty recording id=\(id)")
+        syncFloatToQueue(fallbackNotice: message)
+    }
+
+    /// 浮条跟随队列：还有进行中的项就显示它，有阻塞项就提示需处理，都没有才显示提示。
+    private func syncFloatToQueue(fallbackNotice: String) {
+        let phases = queue.items.map(\.phase)
+        if phases.contains(where: { if case .listening = $0 { return true }; return false }) {
+            float = .listening
+        } else if phases.contains(where: { if case .transcribing = $0 { return true }; return false }) {
+            float = .transcribing
+        } else if queue.hasBlocker {
+            float = .attention
+            lastMessage = "还有待处理的内容，请在菜单里处理"
+        } else {
+            float = .notice
+            lastMessage = fallbackNotice
         }
     }
 
@@ -703,14 +793,25 @@ final class Coordinator: ObservableObject {
         drain()
     }
 
+    /// 重新转写一条失败的录音（录音保留在内存里）。
     func retry(id: Int) {
+        guard let pcm = recordings[id] else {
+            lastMessage = "这条录音没有保留，请丢弃后重新说"
+            return
+        }
         queue.retry(id: id)
-        lastMessage = "重试功能需保留录音，第一版由下次按键重录代替"
+        float = .transcribing
+        lastMessage = ""
+        transcribe(id: id, pcm: pcm)
     }
+
+    /// 该项是否还能重试（录音还在）。
+    func canRetry(id: Int) -> Bool { recordings[id] != nil }
 
     func discard(id: Int) {
         queue.discard(id: id)
         snapshots[id] = nil
+        recordings[id] = nil
         rewrittenTexts[id] = nil
         if queue.items.isEmpty { float = nil }
     }
@@ -718,6 +819,7 @@ final class Coordinator: ObservableObject {
     func discardAll() {
         queue.discardAll()
         snapshots.removeAll()
+        recordings.removeAll()
         rewrittenTexts.removeAll()
         float = nil
     }
