@@ -1,0 +1,7 @@
+# 只跟踪 GitHub Actions；Swift 依赖（whisper.cpp）由 Scripts/fetch-whisper.sh 固定版本与 SHA256，手工升级。
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
