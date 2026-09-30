@@ -15,8 +15,8 @@
   </p>
   <p><strong>中文</strong> · <a href="README.en.md">English</a> · <a href="#2-下载安装">下载安装</a> · <a href="#3-从源码构建">从源码构建</a> · <a href="AGENTS.md">开发协作</a></p>
   <p>
-    <a href="https://github.com/taliove/MiVibe/releases/download/v0.4.0/mivibe-promo.mp4"><img src="docs/images/promo-loop.webp" width="620" alt="MiVibe 宣传片片段：按住说话、识别、纠正、写入输入框"></a>
-    <br><sub><a href="https://github.com/taliove/MiVibe/releases/download/v0.4.0/mivibe-promo.mp4">▶ 观看 46 秒宣传片</a></sub>
+    <a href="https://github.com/taliove/MiVibe/releases/latest/download/mivibe-promo.mp4"><img src="docs/images/promo-loop.webp" width="620" alt="MiVibe 宣传片片段：按住说话、识别、纠正、写入输入框"></a>
+    <br><sub><a href="https://github.com/taliove/MiVibe/releases/latest/download/mivibe-promo.mp4">▶ 观看 46 秒宣传片</a></sub>
   </p>
 </div>
 

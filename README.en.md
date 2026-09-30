@@ -15,8 +15,8 @@
   </p>
   <p><a href="README.md">中文</a> · <strong>English</strong> · <a href="#download-and-install">Download</a> · <a href="#build-from-source">Build from source</a> · <a href="AGENTS.md">Contributing (Chinese)</a></p>
   <p>
-    <a href="https://github.com/taliove/MiVibe/releases/download/v0.4.0/mivibe-promo.mp4"><img src="docs/images/promo-loop.webp" width="620" alt="MiVibe promo clip: hold, speak, recognize, correct, type"></a>
-    <br><sub><a href="https://github.com/taliove/MiVibe/releases/download/v0.4.0/mivibe-promo.mp4">▶ Watch the 46-second promo</a></sub>
+    <a href="https://github.com/taliove/MiVibe/releases/latest/download/mivibe-promo.mp4"><img src="docs/images/promo-loop.webp" width="620" alt="MiVibe promo clip: hold, speak, recognize, correct, type"></a>
+    <br><sub><a href="https://github.com/taliove/MiVibe/releases/latest/download/mivibe-promo.mp4">▶ Watch the 46-second promo</a></sub>
   </p>
 </div>
 

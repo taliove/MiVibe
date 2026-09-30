@@ -4,25 +4,49 @@
 
 Each release has one section, Chinese first, English second. The release workflow copies the section matching the tag to the top of the release notes and fails if it is missing.
 
-## [Unreleased]
+## [0.5.0] - 2026-09-30
 
 ### 本版更新
 
-- 以 MIT 许可证开源，安装包内附带本项目与 whisper.cpp 的许可声明。
-- 新增安全漏洞私下报告渠道（SECURITY.md）。
-- 修复：几乎同时按下菜单键和返回键后，模式选单再也打不开（按菜单键无反应，按返回键时一闪而过）。
-- 新增按键提示：按下遥控器按键时在屏幕中央短暂显示键名与这一次的实际结果（如「确认 → ⌘↩」「菜单 → 模式选单」），可在「设置 → 遥控器」关闭。
-- 46 秒宣传片与 README 顶部的循环预览，工程在 `promo/`（Motion Canvas + 程序合成配乐，零版权素材）。
-- 浮条跟随每条录音：连续说话时每句一条、上下叠放（新句在下），各自显示进度，已输入的那条单独收起；模式切换等提示单独一条；第三条录音被拒绝时已有浮条轻晃一下。
+**每句话一条浮条**
+- 连续说话时每句一条浮条，上下叠放（新句在下），各自显示正在听、转写中、改写中、已输入或需处理，不再互相覆盖。
+- 写入完成的那条单独收起，另一条原位不动；模式切换等提示单独一条。
+- 前一句需要处理时，后一句显示「先处理上一句，这句会接着输入」，并随它一起收起。
+- 第三条录音被拒绝时，已有浮条轻晃一下提醒。
+
+**按键提示**
+- 按下遥控器按键时，屏幕中央短暂显示键名与这一次的实际结果，如「确认 → ⌘↩」「菜单 → 模式选单」「↑ → 原样转发」，按应用覆盖也如实显示。
+- 按住时原地更新；语音键和模式选单打开时不显示。可在「设置 → 遥控器」关闭。
+
+**修复**
+- 几乎同时按下菜单键和返回键后，模式选单再也打不开（按菜单键无反应，按返回键时一闪而过）。
+- 以前只记在后台的提示（如「找不到输入焦点」）现在会显示在浮条上。
+
+**开源**
+- 以 MIT 许可证开源，安装包内附带本项目与 whisper.cpp 的许可声明；新增安全问题私下报告渠道与贡献指南。
+- 应用标识改为 `io.github.taliove.mivibe`。从旧版本升级后，需要在「隐私与安全性」里重新勾选辅助功能和输入监控。
+- 46 秒宣传片与 README 顶部的循环预览，工程在 `promo/`。
 
 ### What's New
 
-- Open-sourced under the MIT License; the app bundle now includes the license notices for MiVibe and whisper.cpp.
-- A private channel for reporting security issues (SECURITY.md).
-- Fix: after pressing the menu and back keys almost together, the mode picker no longer opened (the menu key did nothing and the back key only flashed it).
-- Key hints: pressing a remote key briefly shows the key and what it actually did in the center of the screen (e.g. "Confirm → ⌘↩", "Menu → Mode picker"); turn it off in Settings → Remote.
-- A 46-second promo video and a looping preview at the top of the README, built from `promo/` (Motion Canvas plus procedurally generated music, no licensed assets).
-- One float bar per recording: when you speak several sentences in a row, each gets its own bar, stacked with the newest at the bottom and showing its own progress; an inserted bar collapses on its own; notices such as mode switches get a separate bar; a rejected third recording shakes the existing bars once.
+**One float bar per sentence**
+- Speaking several sentences in a row gives each its own bar, stacked with the newest at the bottom, each showing listening, transcribing, rewriting, inserted or needs attention without overwriting the others.
+- An inserted bar collapses on its own while the other stays put; notices such as mode switches get their own bar.
+- When the previous sentence needs attention, the next one says it will be typed once that is handled, and collapses with it.
+- A rejected third recording gives the existing bars a short shake.
+
+**Key hints**
+- Pressing a remote key briefly shows the key and what it actually did in the center of the screen, such as "Confirm → ⌘↩", "Menu → Mode picker" or "↑ → Passthrough", including per-app overrides.
+- Holding a key updates it in place; the voice key and the open mode picker show no hint. Turn it off in Settings → Remote.
+
+**Fixes**
+- After pressing the menu and back keys almost together, the mode picker no longer opened (the menu key did nothing and the back key only flashed it).
+- Notices that used to be logged only (such as "no focused text field") now appear on the float bar.
+
+**Open source**
+- Released under the MIT License, with MiVibe and whisper.cpp license notices in the app bundle, a private security reporting channel and a contributing guide.
+- The bundle identifier is now `io.github.taliove.mivibe`. After upgrading from an earlier version, re-enable Accessibility and Input Monitoring in Privacy & Security.
+- A 46-second promo video and a looping README preview, built from `promo/`.
 
 ## [0.4.0] - 2026-09-30
 
@@ -118,5 +142,6 @@ Each release has one section, Chinese first, English second. The release workflo
 
 0.1.0 与 0.2.0 的改动见提交历史。Changes in 0.1.0 and 0.2.0 are in the commit history.
 
+[0.5.0]: https://github.com/taliove/MiVibe/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/taliove/MiVibe/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/taliove/MiVibe/compare/v0.2.0...v0.3.0

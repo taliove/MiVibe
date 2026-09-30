@@ -50,7 +50,7 @@ CI 顺序见 `.github/workflows/ci.yml`：拉取依赖 → 构建 → 测试 →
 | `Scripts/build-app.sh [debug\|release]` | 重建仓库内 `build/MiVibe.app`，默认 release；可能下载依赖。 |
 | `Scripts/deploy.sh [debug\|release]` | 关闭 MiVibe、构建、替换 `/Applications/MiVibe.app` 并启动，默认 release。 |
 | `Scripts/make-dmg.sh` | 把已组装的 `build/MiVibe.app` 打成 `build/MiVibe-<版本>-<架构>.dmg`；发布流程用它生成 DMG，发布说明模板在 `.github/release-notes.md`。 |
-| `Scripts/release-notes.sh <版本>` | 把 `CHANGELOG.md` 中该版本一节（中英文「本版更新」）与 `.github/release-notes.md` 的下载安装说明拼成发布说明；缺少该节时非零退出，发布流程因此失败。发版前先在 `CHANGELOG.md` 写好对应一节。 |
+| `Scripts/release-notes.sh <版本>` | 把 `CHANGELOG.md` 中该版本一节（中英文「本版更新」）与 `.github/release-notes.md` 的下载安装说明拼成发布说明；缺少该节时非零退出，发布流程因此失败。发版前先在 `CHANGELOG.md` 写好对应一节。README 顶部视频链接指向 `releases/latest/download/mivibe-promo.mp4`，发布完成后把 `promo/output/mivibe-promo.mp4` 上传到新版本（`gh release upload`），否则链接失效。 |
 | `MIVIBE_SIGN_IDENTITY=- Scripts/build-app.sh release` | 显式使用 ad-hoc 签名，适合 CI 组装验证。 |
 
 只在任务需要安装、权限或发布验证时执行相应操作；普通文档编辑不触碰用户的已安装应用与系统授权。
