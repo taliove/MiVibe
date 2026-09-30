@@ -173,6 +173,7 @@ extension SettingsView {
                 Button("保存") { saveLLMProvider() }
                     .controlSize(.small)
                     .buttonStyle(.borderedProminent)
+                    .tint(Color.brandControlFill)
                     .disabled(llmBaseURLDraft.isEmpty || llmModelDraft.isEmpty)
             }
         }

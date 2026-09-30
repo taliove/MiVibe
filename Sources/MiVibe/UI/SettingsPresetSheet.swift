@@ -147,6 +147,7 @@ struct PresetSheet: View {
                 onDismiss()
             }
             .buttonStyle(.borderedProminent)
+            .tint(Color.brandControlFill)
             .keyboardShortcut(.defaultAction)
             .disabled(selectedPreset == nil)
         }

@@ -46,7 +46,6 @@ struct SettingsSidebar: View {
             .padding(.horizontal, 6)
             .padding(.vertical, 8)
         }
-        .tint(Color.brandAccent)
         .animation(reduceMotion ? nil : Motion.standard, value: paneModel.pane)
         .focused($focused)
         .focusable()

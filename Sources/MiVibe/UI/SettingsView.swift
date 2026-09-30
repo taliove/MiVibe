@@ -114,7 +114,6 @@ struct SettingsView: View {
         .id(paneModel.pane)
         .transition(.opacity)
         .animation(Motion.quick, value: paneModel.pane)
-        .tint(Color.brandAccent)
         .onAppear {
             loadLLMDrafts()
             appearancePaneSeen = Config.load().appearancePaneSeen ?? false

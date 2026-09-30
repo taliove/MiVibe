@@ -10,6 +10,7 @@ import MiVibeCore
 /// - 未知字符串一律回落默认主题，而不是让解码失败。
 enum ThemeTests {
     static func run() {
+        controlFillContrast()
         parsing()
         fallback()
         paletteCompleteness()
@@ -137,6 +138,18 @@ enum ThemeTests {
             Harness.expectEqual(decoded.effectiveTheme, .rose, "主题选择往返保留")
             Harness.expectEqual(decoded.effectiveAppearance, .dark, "外观选择往返保留")
             Harness.expectEqual(decoded.doubaoAPIKey, "sk-roundtrip", "其他字段往返保留")
+        }
+    }
+
+    /// 系统绘制的选中控件（白字）在两种外观下都要读得清。
+    static func controlFillContrast() {
+        Harness.suite("系统选中控件底色配白字 ≥ 4.5") {
+            let white = RGB(hex: 0xFFFFFF)
+            for id in ThemeID.allCases {
+                let p = ThemePalette.palette(id)
+                Harness.expect(ContrastRatio.between(p.accentStrong, white) >= 4.5, "\(id) 浅色控件底配白字")
+                Harness.expect(ContrastRatio.between(p.controlFillDark, white) >= 4.5, "\(id) 深色控件底配白字")
+            }
         }
     }
 }

@@ -103,7 +103,7 @@ private extension View {
     @ViewBuilder
     func borderlessIfRecording(_ recording: Bool) -> some View {
         if recording {
-            self.buttonStyle(.borderedProminent)
+            self.buttonStyle(.borderedProminent).tint(Color.brandControlFill)
         } else {
             self
         }

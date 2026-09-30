@@ -39,6 +39,7 @@ extension SettingsView {
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
+                .tint(Color.brandControlFill)
             }
         }
     }
@@ -87,6 +88,7 @@ extension SettingsView {
                     }
                     .controlSize(.small)
                     .buttonStyle(.borderedProminent)
+                    .tint(Color.brandControlFill)
                     .disabled(keywordFromDraft.trimmingCharacters(in: .whitespaces).isEmpty
                               || keywordToDraft.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
@@ -108,6 +110,7 @@ extension SettingsView {
                     Button("保存") { saveKey() }
                         .controlSize(.small)
                         .buttonStyle(.borderedProminent)
+                        .tint(Color.brandControlFill)
                         .disabled(apiKeyDraft.isEmpty)
                 }
             }
@@ -119,6 +122,7 @@ extension SettingsView {
                     set: { coordinator.enableNonstream = $0 }
                 ))
                 .labelsHidden()
+                .tint(Color.brandAccent)
             }
             RowDivider()
             SettingsRow(icon: "link", title: "申请 Key",
@@ -248,6 +252,7 @@ private struct ModelRow: View {
         case .downloading(let progress):
             HStack(spacing: 8) {
                 ProgressView(value: progress)
+                    .tint(Color.brandAccent)
                     .frame(width: 80)
                 Text("\(Int(progress * 100))%")
                     .font(.caption)

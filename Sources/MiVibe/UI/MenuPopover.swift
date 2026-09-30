@@ -44,7 +44,6 @@ struct MenuPopover: View {
         }
         .padding(14)
         .frame(width: 340)
-        .tint(Color.brandAccent)
     }
 
     // MARK: - 头部：链路状态
@@ -179,8 +178,7 @@ struct MenuPopover: View {
                 .foregroundStyle(.secondary)
             Button("打开蓝牙设置…") { Permissions.openBluetoothSettings() }
                 .buttonStyle(.borderedProminent)
-                .tint(Color.brandAccentFill)
-                .foregroundStyle(Color.brandOnAccentFill)
+                .tint(Color.brandControlFill)
                 .controlSize(.small)
         }
     }
@@ -229,8 +227,7 @@ struct MenuPopover: View {
                     if phaseText(item.phase) != nil {
                         Button("输入到这里") { coordinator.resumeHere(id: item.id) }
                             .buttonStyle(.borderedProminent)
-                            .tint(Color.brandAccentFill)
-                            .foregroundStyle(Color.brandOnAccentFill)
+                            .tint(Color.brandControlFill)
                             .controlSize(.small)
                     } else if item.phase == .needsAttention(.transcriptionFailed), coordinator.canRetry(id: item.id) {
                         Button("重试") { coordinator.retry(id: item.id) }

@@ -24,6 +24,7 @@ extension SettingsView {
                         Button("打开蓝牙设置…") { Permissions.openBluetoothSettings() }
                             .controlSize(.small)
                             .buttonStyle(.borderedProminent)
+                            .tint(Color.brandControlFill)
                     } else {
                         Button("打开蓝牙设置…") { Permissions.openBluetoothSettings() }
                             .controlSize(.small)
@@ -176,6 +177,7 @@ extension SettingsView {
                     }
                 ))
                 .labelsHidden()
+                .tint(Color.brandAccent)
             }
             RowDivider()
             SettingsRow(icon: inputMonitoringGranted

@@ -123,6 +123,15 @@ extension NSColor {
         return .dynamic(light: p.accentStrong, dark: p.accentDark)
     }
 
+    /// 系统绘制的选中控件底色（分段控件选中段、`.borderedProminent` 按钮）。
+    /// 这些控件的文字由系统固定画成白色，深色下亮主题色配白字只有 1.4–2.9:1，
+    /// 所以两种外观都用深一档的 accentStrong（白字 ≥ 5.7:1）。石墨的 accentStrong
+    /// 在深色窗口上几乎看不见，深色改用提亮一档的石墨灰（白字 6.3:1）。
+    @MainActor static var brandControlFill: NSColor {
+        let p = BrandColorCurrent.palette
+        return .dynamic(light: p.accentStrong, dark: p.controlFillDark)
+    }
+
     /// 填充面上的文字：浅色白，深色墨绿。
     @MainActor static var brandOnAccentFill: NSColor {
         let p = BrandColorCurrent.palette
@@ -157,6 +166,8 @@ extension Color {
     @MainActor static var brandAccent: Color { Color(nsColor: .brandAccent) }
     /// 填充面（其上文字用 `brandOnAccentFill`）。
     @MainActor static var brandAccentFill: Color { Color(nsColor: .brandAccentFill) }
+    /// 系统绘制的选中控件底色（配系统白字），见 `NSColor.brandControlFill`。
+    @MainActor static var brandControlFill: Color { Color(nsColor: .brandControlFill) }
     /// 填充面上的文字色。
     @MainActor static var brandOnAccentFill: Color { Color(nsColor: .brandOnAccentFill) }
     /// 着色背景（推荐标签、选中行、品牌横幅）。

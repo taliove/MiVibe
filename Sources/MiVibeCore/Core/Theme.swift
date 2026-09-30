@@ -175,3 +175,12 @@ public enum ContrastRatio {
         return 0.2126 * channel(c.r) + 0.7152 * channel(c.g) + 0.0722 * channel(c.b)
     }
 }
+
+extension ThemePalette {
+    /// 深色外观下系统绘制选中控件（分段控件、`.borderedProminent`）的底色。
+    /// 这类控件文字固定为白色：一般主题用 accentStrong；石墨的 accentStrong
+    /// 在深色窗口上几乎看不见，改用提亮一档的石墨灰。白字对比度由 ThemeTests 守住。
+    public var controlFillDark: RGB {
+        id == .graphite ? RGB(hex: 0x52636B) : accentStrong
+    }
+}

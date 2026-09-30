@@ -201,6 +201,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    @MainActor private var popoverPreview: NSWindow?
+
+    @MainActor
+    private func showPopoverPreview(_ coordinator: Coordinator) {
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 340, height: 300),
+                              styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: false)
+        window.titlebarAppearsTransparent = true
+        window.contentView = NSHostingView(rootView: MenuPopover(coordinator: coordinator))
+        window.center()
+        window.orderFrontRegardless()
+        popoverPreview = window
+    }
+
     @MainActor private var menuBarDemoTimer: Timer?
 
     @MainActor
@@ -222,6 +235,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if ProcessInfo.processInfo.environment["MIVIBE_FLOAT_DEMO"] != nil {
             if demoPanel == nil { runFloatDemo() }
             return
+        }
+        // 开发走查：MIVIBE_POPOVER_PREVIEW=1 把菜单弹层内容放进普通窗口，便于截图核对
+        // （脚本点不开菜单栏弹层）。协调器照常挂接。
+        if ProcessInfo.processInfo.environment["MIVIBE_POPOVER_PREVIEW"] != nil {
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated { self.showPopoverPreview(coordinator) }
+            }
         }
         // 开发走查：MIVIBE_MENUBAR_DEMO=1 只用合成电平驱动菜单栏图标，不挂协调器。
         if ProcessInfo.processInfo.environment["MIVIBE_MENUBAR_DEMO"] != nil {
