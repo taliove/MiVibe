@@ -14,6 +14,10 @@
     <img src="https://img.shields.io/github/v/release/taliove/MiVibe?style=flat-square&color=0C98A8&labelColor=2B3A3F" alt="Latest release">
   </p>
   <p><a href="README.md">中文</a> · <strong>English</strong> · <a href="#download-and-install">Download</a> · <a href="#build-from-source">Build from source</a> · <a href="AGENTS.md">Contributing (Chinese)</a></p>
+  <p>
+    <a href="https://github.com/taliove/MiVibe/releases/download/v0.4.0/mivibe-promo.mp4"><img src="docs/images/promo-loop.webp" width="620" alt="MiVibe promo clip: hold, speak, recognize, correct, type"></a>
+    <br><sub><a href="https://github.com/taliove/MiVibe/releases/download/v0.4.0/mivibe-promo.mp4">▶ Watch the 46-second promo</a></sub>
+  </p>
 </div>
 
 ---
@@ -83,7 +87,7 @@ swift build
 swift run MiVibeTests
 ```
 
-Tests use a custom executable harness, not `swift test`. Read [AGENTS.md](AGENTS.md) for shared engineering rules, [CLAUDE.md](CLAUDE.md) for the Claude Code entry point, [SPEC.md](SPEC.md) for the product contract, [CONTEXT.md](CONTEXT.md) for domain terms, and [CHANGELOG.md](CHANGELOG.md) for release notes in Chinese and English. See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a PR. Engineering documentation is primarily in Chinese.
+Tests use a custom executable harness, not `swift test`. Read [AGENTS.md](AGENTS.md) for shared engineering rules, [CLAUDE.md](CLAUDE.md) for the Claude Code entry point, [SPEC.md](SPEC.md) for the product contract, [CONTEXT.md](CONTEXT.md) for domain terms, and [CHANGELOG.md](CHANGELOG.md) for release notes in Chinese and English. See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a PR. The promo video is built from [promo](promo) (Motion Canvas plus procedurally generated music). Engineering documentation is primarily in Chinese.
 
 ## License and notices
 

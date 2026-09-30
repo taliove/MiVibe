@@ -1,0 +1,3 @@
+allowBuilds:
+  '@ffmpeg-installer/darwin-arm64': true
+  '@ffprobe-installer/darwin-arm64': true

@@ -70,6 +70,7 @@ CI 顺序见 `.github/workflows/ci.yml`：拉取依赖 → 构建 → 测试 →
 | `Sources/MiVibeProbes/` | 独立诊断入口，与应用共享 Core。 |
 | `Tests/MiVibeTests/` | 可脱离硬件运行的断言测试。 |
 | `Package.swift` / `Scripts/` | whisper.cpp 编译清单、依赖获取、资源装配、签名与部署。 |
+| `promo/` | 宣传片工程：Motion Canvas 画面 + Node 合成配乐，独立 `package.json`，与 Swift 构建无关；节拍表 `src/timing.ts` 同时驱动画面与配乐，改切点只改这里。 |
 
 让 `InputQueue`、`KeyRouter`、映射解析等规则保持可独立测试。网络、文件、硬件及系统事件副作用留在相应边界实现中；`MiVibeCore` 不依赖 SwiftUI。不要把模型下载、LLM 请求等新增边界遗漏在架构描述之外。
 

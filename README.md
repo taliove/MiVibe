@@ -14,6 +14,10 @@
     <img src="https://img.shields.io/github/v/release/taliove/MiVibe?style=flat-square&color=0C98A8&labelColor=2B3A3F" alt="最新发布版本">
   </p>
   <p><strong>中文</strong> · <a href="README.en.md">English</a> · <a href="#2-下载安装">下载安装</a> · <a href="#3-从源码构建">从源码构建</a> · <a href="AGENTS.md">开发协作</a></p>
+  <p>
+    <a href="https://github.com/taliove/MiVibe/releases/download/v0.4.0/mivibe-promo.mp4"><img src="docs/images/promo-loop.webp" width="620" alt="MiVibe 宣传片片段：按住说话、识别、纠正、写入输入框"></a>
+    <br><sub><a href="https://github.com/taliove/MiVibe/releases/download/v0.4.0/mivibe-promo.mp4">▶ 观看 46 秒宣传片</a></sub>
+  </p>
 </div>
 
 ---
@@ -140,6 +144,7 @@ swift run MiVibeTests      # 自带断言的可执行测试套件
 | [CHANGELOG.md](CHANGELOG.md) | 各版本更新记录（中英文）。 |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | 参与贡献的流程与隐私要求。 |
 | [docs/adr](docs/adr) | 架构决策记录。 |
+| [promo](promo) | 宣传片工程（Motion Canvas + 程序合成配乐），`pnpm build` 重新渲染。 |
 | [.scratch/mivibe](.scratch/mivibe) | 已入库的研究、票据与真机证据。 |
 
 ## 许可与声明
