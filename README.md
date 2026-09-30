@@ -1,12 +1,17 @@
 <div align="center">
-  <img src="docs/images/mi-remote.png" height="200" alt="MiVibe 支持的小米蓝牙语音遥控器">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/hero-dark.png">
+    <img src="docs/images/hero-light.png" width="620" alt="MiVibe：按住说话，松手成文">
+  </picture>
   <h1>MiVibe</h1>
   <p><strong>按住说话，松手成文。</strong></p>
   <p>让小米遥控器，成为 Mac 的语音输入与操作入口。</p>
+  <p>适用于小米蓝牙语音遥控器（VID 0x2717 / PID 0x32B8）。</p>
   <p>
-    <img src="https://img.shields.io/badge/macOS-native-18181B?style=flat-square&logo=apple&logoColor=white" alt="macOS 原生应用">
-    <img src="https://img.shields.io/badge/Swift-6.0-F05138?style=flat-square&logo=swift&logoColor=white" alt="Swift 6.0">
-    <img src="https://img.shields.io/badge/ASR-cloud%20%2B%20local-417D65?style=flat-square" alt="云端与本地语音识别">
+    <img src="https://img.shields.io/badge/macOS-native-0C98A8?style=flat-square&logo=apple&logoColor=white&labelColor=2B3A3F" alt="macOS 原生应用">
+    <img src="https://img.shields.io/badge/Swift-6.0-0C98A8?style=flat-square&logo=swift&logoColor=white&labelColor=2B3A3F" alt="Swift 6.0">
+    <img src="https://img.shields.io/badge/ASR-cloud%20%2B%20local-0C98A8?style=flat-square&labelColor=2B3A3F" alt="云端与本地语音识别">
+    <img src="https://img.shields.io/github/v/release/taliove/mi-vibe?style=flat-square&color=0C98A8&labelColor=2B3A3F" alt="最新发布版本">
   </p>
   <p><strong>中文</strong> · <a href="README.en.md">English</a> · <a href="#2-下载安装">下载安装</a> · <a href="#3-从源码构建">从源码构建</a> · <a href="AGENTS.md">开发协作</a></p>
 </div>

@@ -1,12 +1,17 @@
 <div align="center">
-  <img src="docs/images/mi-remote.png" height="200" alt="Xiaomi Bluetooth voice remote supported by MiVibe">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/hero-dark.png">
+    <img src="docs/images/hero-light.png" width="620" alt="MiVibe: hold to talk, release to write">
+  </picture>
   <h1>MiVibe</h1>
   <p><strong>Hold to talk. Release to write.</strong></p>
   <p>Turn a Xiaomi Bluetooth voice remote into your Mac's voice input and control device.</p>
+  <p>Works with the Xiaomi Bluetooth voice remote (VID 0x2717 / PID 0x32B8).</p>
   <p>
-    <img src="https://img.shields.io/badge/macOS-native-18181B?style=flat-square&logo=apple&logoColor=white" alt="Native macOS app">
-    <img src="https://img.shields.io/badge/Swift-6.0-F05138?style=flat-square&logo=swift&logoColor=white" alt="Swift 6.0">
-    <img src="https://img.shields.io/badge/ASR-cloud%20%2B%20local-417D65?style=flat-square" alt="Cloud and local speech recognition">
+    <img src="https://img.shields.io/badge/macOS-native-0C98A8?style=flat-square&logo=apple&logoColor=white&labelColor=2B3A3F" alt="Native macOS app">
+    <img src="https://img.shields.io/badge/Swift-6.0-0C98A8?style=flat-square&logo=swift&logoColor=white&labelColor=2B3A3F" alt="Swift 6.0">
+    <img src="https://img.shields.io/badge/ASR-cloud%20%2B%20local-0C98A8?style=flat-square&labelColor=2B3A3F" alt="Cloud and local speech recognition">
+    <img src="https://img.shields.io/github/v/release/taliove/mi-vibe?style=flat-square&color=0C98A8&labelColor=2B3A3F" alt="Latest release">
   </p>
   <p><a href="README.md">中文</a> · <strong>English</strong> · <a href="#download-and-install">Download</a> · <a href="#build-from-source">Build from source</a> · <a href="AGENTS.md">Contributing (Chinese)</a></p>
 </div>
