@@ -1,0 +1,970 @@
+<title>MiVibe 设计系统</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* 版式：品牌手册式单栏。顶部吸附的控制条（色系 × 样稿外观）驱动全部样稿；
+   样稿按真实点数绘制（设置窗口 850×600），再由脚本等比缩放进栏宽 */
+:root {
+  --bg: #F2F5F5; --surface: #FFFFFF; --fg: #141C1F; --muted: #5C6A6F; --line: #D9E0E2;
+  --ok: #1D9A57; --warn: #C27400; --err: #D93A2B; --note: #6B7A7E;
+  --a: #0C98A8; --a-strong: #08717F; --a-soft: #D7F1F2; --a-top: #16B4C2; --a-bot: #086978; --a-dark: #22B8C6;
+  --f-display: "Bricolage Grotesque", "PingFang SC", "Hiragino Sans GB", system-ui, sans-serif;
+  --f-body: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0C1215; --surface: #121B1F; --fg: #E4ECEE; --muted: #93A4A9; --line: #23333A;
+  --ok: #3CC97D; --warn: #F0A43A; --err: #FF6B5C; --note: #93A5A9; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0C1215; --surface: #121B1F; --fg: #E4ECEE; --muted: #93A4A9; --line: #23333A;
+  --ok: #3CC97D; --warn: #F0A43A; --err: #FF6B5C; --note: #93A5A9; color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font: 15px/1.7 var(--f-body); }
+.wrap { max-width: 1080px; margin: 0 auto; padding-inline: 20px; padding-block: 36px 90px; display: grid; gap: 64px; }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; margin: 0; line-height: 1.2; }
+h1 { font-size: clamp(2.2rem, 5.5vw, 3.2rem); letter-spacing: -.02em; }
+h2 { font-size: 1.6rem; }
+h3 { font-size: 1.02rem; }
+p { margin: 0; max-width: 68ch; }
+.eyebrow { font: 500 .72rem/1 var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--a-strong); }
+section { display: grid; gap: 20px; scroll-margin-top: 90px; }
+.lead { color: var(--muted); }
+.cap { font-size: .82rem; color: var(--muted); }
+.board { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 24px; display: grid; gap: 22px; min-width: 0; }
+.scene { display: grid; gap: 12px; min-width: 0; }
+.scene-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
+.scene-h .n { font: 500 .72rem var(--f-mono); color: var(--muted); }
+.notes { margin: 0; padding-left: 1.1em; display: grid; gap: 4px; font-size: .88rem; color: var(--muted); max-width: 78ch; }
+.notes b { color: var(--fg); font-weight: 600; }
+.two { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); align-items: start; }
+.three { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); align-items: start; }
+
+/* 顶部控制条 */
+.ctl { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 10; background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-bottom: 1px solid var(--line); }
+.ctl-in { max-width: 1080px; margin: 0 auto; padding-inline: 20px; padding-block: 10px; display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
+.ctl label { font: 500 .72rem var(--f-mono); letter-spacing: .08em; color: var(--muted); text-transform: uppercase; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { display: inline-flex; align-items: center; gap: 7px; padding: 4px 11px 4px 4px; border-radius: 99px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); font: 500 .84rem var(--f-body); cursor: pointer; }
+.chip i { width: 20px; height: 20px; border-radius: 50%; display: block; }
+.chip[aria-pressed="true"] { border-color: var(--fg); box-shadow: 0 0 0 1px var(--fg); }
+.chip:focus-visible, .pseg button:focus-visible { outline: 2px solid var(--a); outline-offset: 2px; }
+.pseg { display: inline-flex; border: 1px solid var(--line); border-radius: 99px; overflow: hidden; background: var(--surface); }
+.pseg button { border: 0; background: transparent; color: var(--fg); font: 500 .82rem var(--f-body); padding: 5px 12px; cursor: pointer; }
+.pseg button[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+.toc { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: .84rem; }
+.toc a { color: var(--muted); text-decoration: none; }
+.toc a:hover { color: var(--a-strong); }
+
+/* 封面 */
+.hero { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 34px; align-items: center; }
+.hero .icon { width: 150px; }
+.hero .tag { font-size: 1.3rem; font-weight: 600; margin-top: 6px; }
+.hero .tag span { color: var(--a-strong); }
+.hero p { margin-top: 12px; color: var(--muted); }
+@media (max-width: 640px) { .hero { grid-template-columns: 1fr; } .hero .icon { width: 104px; } }
+
+/* 品牌小件 */
+.icons-row { display: flex; flex-wrap: wrap; gap: 22px; align-items: flex-end; }
+.icons-row figure { margin: 0; display: grid; gap: 6px; justify-items: center; }
+.icons-row figcaption { font: .72rem var(--f-mono); color: var(--muted); }
+.dock { border-radius: 14px; padding: 16px 20px; display: flex; gap: 14px; align-items: flex-end; justify-content: center; }
+.dock.l { background: #E7EAED; } .dock.d { background: #1C1F24; }
+.dock svg { width: 52px; height: 52px; }
+.mbline { display: flex; flex-wrap: wrap; gap: 10px 22px; }
+.mbline div { display: flex; gap: 8px; align-items: center; font-size: .86rem; }
+.mbline svg { width: 20px; height: 20px; color: var(--fg); flex: none; }
+
+/* 色系卡 */
+.pal { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+.pc { border: 1px solid var(--line); border-radius: 14px; padding: 12px; background: var(--surface); display: grid; gap: 8px; cursor: pointer; text-align: left; color: var(--fg); font: inherit; }
+.pc[aria-pressed="true"] { border-color: var(--fg); box-shadow: 0 0 0 1px var(--fg); }
+.pc:focus-visible { outline: 2px solid var(--a); outline-offset: 2px; }
+.pc .top { display: flex; gap: 10px; align-items: center; }
+.pc svg { width: 40px; height: 40px; flex: none; }
+.pc b { font-family: var(--f-display); }
+.pc .hex { font: .7rem var(--f-mono); color: var(--muted); display: block; }
+.pc .bar { display: flex; gap: 4px; }
+.pc .bar i { height: 14px; flex: 1; border-radius: 4px; display: block; }
+.pc small { font-size: .78rem; color: var(--muted); line-height: 1.5; }
+.rec { font: 500 .66rem/1 var(--f-mono); padding: 3px 6px; border-radius: 99px; background: var(--a-soft); color: var(--a-strong); }
+.tokens { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: .85rem; }
+.tokens table { min-width: 620px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+th { font: 500 .7rem var(--f-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+td .sw { display: inline-block; width: 26px; height: 16px; border-radius: 4px; vertical-align: middle; margin-right: 8px; border: 1px solid var(--line); }
+td code { font: .78rem var(--f-mono); }
+
+/* 缩放容器 */
+.fit { width: 100%; overflow: hidden; position: relative; }
+.fit > .nat { transform-origin: top left; }
+
+/* ───────── 样稿：mac 外观令牌 ───────── */
+.mk { --acc: var(--a); font: 13px/1.35 -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", sans-serif; -webkit-font-smoothing: antialiased; }
+.mk.light { --w-bg: #FFFFFF; --w-side: #EDEFF0; --w-card: #FFFFFF; --w-cardline: #E0E4E6; --w-fg: #1D2326; --w-fg2: #6E7A7E; --w-fg3: #A3ADB0;
+  --w-btn: #E9ECEE; --w-btnfg: #1D2326; --w-field: #FFFFFF; --w-fieldline: #D5DADC; --w-shadow: 0 22px 60px rgba(10,20,25,.22), 0 0 0 .5px rgba(0,0,0,.18);
+  --w-sel: var(--acc); --w-acc: var(--acc); --w-soft: color-mix(in srgb, var(--acc) 14%, transparent); color: var(--w-fg);
+  --ok-c: #1D9A57; --warn-c: #C27400; --err-c: #D93A2B; --warn-soft: #FBEEDD; }
+.mk.dark { --w-bg: #1E2326; --w-side: #262C30; --w-card: #2A3135; --w-cardline: #373F44; --w-fg: #E8EDEF; --w-fg2: #9AA7AB; --w-fg3: #66737A;
+  --w-btn: #3A4247; --w-btnfg: #E8EDEF; --w-field: #1F2629; --w-fieldline: #3F484D; --w-shadow: 0 22px 60px rgba(0,0,0,.55), 0 0 0 .5px rgba(255,255,255,.12);
+  --w-sel: var(--acc-d); --w-acc: var(--acc-d); --w-soft: color-mix(in srgb, var(--acc-d) 20%, transparent); color: var(--w-fg);
+  --ok-c: #3CC97D; --warn-c: #F0A43A; --err-c: #FF6B5C; --warn-soft: #3A2E1C; }
+.mk svg.i { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.mk svg.i.f { fill: currentColor; stroke: none; }
+
+/* 设置窗口 */
+.win { width: 850px; min-height: 600px; border-radius: 12px; overflow: hidden; display: grid; grid-template-columns: 210px 640px; background: var(--w-bg); box-shadow: var(--w-shadow); position: relative; }
+
+.side { background: var(--w-side); padding: 12px 10px; display: grid; gap: 2px; align-content: start; border-right: 1px solid var(--w-cardline); }
+.lights { display: flex; gap: 8px; padding: 6px 8px 16px; }
+.lights i { width: 12px; height: 12px; border-radius: 50%; display: block; }
+.lights i:nth-child(1) { background: #FF5F57; } .lights i:nth-child(2) { background: #FEBC2E; } .lights i:nth-child(3) { background: #28C840; }
+.dev { display: flex; gap: 10px; align-items: center; padding: 10px; margin-bottom: 10px; border-radius: 10px; background: color-mix(in srgb, var(--w-card) 75%, transparent); border: 1px solid var(--w-cardline); }
+.dev svg.appi { width: 36px; height: 36px; flex: none; }
+.dev b { display: block; font-size: 13.5px; }
+.pillst { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--w-fg2); }
+.pillst i { width: 6px; height: 6px; border-radius: 50%; display: block; }
+.pillst.on { color: var(--ok-c); } .pillst.on i { background: var(--ok-c); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok-c) 20%, transparent); }
+.pillst.off i { background: var(--w-fg3); } .pillst.new { color: var(--warn-c); } .pillst.new i { background: var(--warn-c); }
+.nav { display: flex; align-items: center; gap: 9px; padding: 6px 10px; border-radius: 7px; font-size: 13.5px; }
+.nav .i { color: var(--w-acc); }
+.nav.on { background: var(--w-sel); color: #fff; }
+.nav.on .i { color: #fff; }
+.nav .tagnew { margin-left: auto; font-size: 10px; padding: 1px 6px; border-radius: 99px; background: var(--w-soft); color: var(--w-acc); }
+.nav.on .tagnew { background: rgba(255,255,255,.25); color: #fff; }
+.detail { display: grid; grid-template-rows: 52px 1fr; min-width: 0; }
+.tbar { display: flex; align-items: center; gap: 14px; padding-inline: 12px; }
+.navbtn { display: inline-flex; border-radius: 99px; background: var(--w-btn); padding: 4px 6px; gap: 2px; box-shadow: inset 0 0 0 .5px var(--w-cardline); }
+.navbtn span { width: 26px; height: 22px; display: grid; place-items: center; color: var(--w-fg); }
+.navbtn span.dim { color: var(--w-fg3); }
+.tbar h5 { margin: 0; font-size: 14px; font-weight: 600; }
+.content { padding: 4px 20px 20px; display: grid; gap: 16px; align-content: start; }
+.phead { color: var(--w-fg2); font-size: 12.5px; }
+.grp { display: grid; gap: 6px; }
+.grp > .gt { font-size: 12px; font-weight: 600; color: var(--w-fg2); padding-left: 4px; }
+.grp > .gf { font-size: 11px; color: var(--w-fg2); padding-left: 4px; line-height: 1.45; }
+.card { background: var(--w-card); border: 1px solid var(--w-cardline); border-radius: 10px; overflow: hidden; }
+.row { display: flex; align-items: center; gap: 10px; padding: 7px 12px; min-height: 36px; position: relative; }
+.row + .row::before { content: ""; position: absolute; top: 0; left: 42px; right: 0; border-top: 1px solid var(--w-cardline); }
+.row.plain + .row::before, .row + .row.plain::before { left: 12px; }
+.row .ri { width: 20px; display: grid; place-items: center; color: var(--w-acc); flex: none; }
+.row .rt { flex: 1; min-width: 0; }
+.row .rt small { display: block; font-size: 11px; color: var(--w-fg2); line-height: 1.35; }
+.row .rt .sz { font-size: 11px; color: var(--w-fg2); margin-left: 4px; }
+.row .tr { display: flex; align-items: center; gap: 6px; flex: none; }
+.row.sel { background: var(--w-soft); }
+.ok-i { color: var(--ok-c) !important; } .warn-i { color: var(--warn-c) !important; } .err-i { color: var(--err-c) !important; } .dim-i { color: var(--w-fg3) !important; }
+.btn { font-size: 12px; padding: 3px 10px; border-radius: 6px; background: var(--w-btn); color: var(--w-btnfg); white-space: nowrap; box-shadow: 0 .5px 1px rgba(0,0,0,.12); }
+.btn.pri { background: var(--w-acc); color: #fff; }
+.btn.dis { opacity: .45; }
+.btn.danger { color: var(--err-c); }
+.seg2 { display: flex; width: 100%; background: var(--w-btn); border-radius: 7px; padding: 2px; }
+.seg2 span { flex: 1; text-align: center; padding: 4px 0; border-radius: 5px; font-size: 12.5px; }
+.seg2 span.on { background: var(--w-acc); color: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.18); }
+.segs { display: inline-flex; background: var(--w-btn); border-radius: 7px; padding: 2px; }
+.segs span { padding: 3px 11px; border-radius: 5px; font-size: 12px; }
+.segs span.on { background: var(--w-acc); color: #fff; }
+.sel-m { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; padding: 3px 8px 3px 10px; border-radius: 6px; background: var(--w-btn); }
+.sel-m::after { content: "⌃⌄"; font-size: 8px; letter-spacing: -1px; writing-mode: vertical-lr; color: var(--w-fg2); line-height: .7; }
+.fld { font-size: 12px; padding: 3px 8px; border-radius: 5px; background: var(--w-field); border: 1px solid var(--w-fieldline); color: var(--w-fg); width: 220px; white-space: nowrap; overflow: hidden; }
+.fld.ph { color: var(--w-fg3); }
+.tog { width: 32px; height: 19px; border-radius: 10px; background: var(--w-fieldline); position: relative; flex: none; }
+.tog::after { content: ""; position: absolute; left: 2px; top: 2px; width: 15px; height: 15px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.25); }
+.tog.on { background: var(--w-acc); } .tog.on::after { left: 15px; }
+.chk { width: 16px; height: 16px; border-radius: 4px; background: var(--w-acc); display: grid; place-items: center; color: #fff; }
+.radio { width: 15px; height: 15px; border-radius: 50%; border: 1.5px solid var(--w-fg3); flex: none; }
+.radio.on { border: 4.5px solid var(--w-acc); }
+.capsule { font-size: 10px; padding: 1px 6px; border-radius: 99px; background: var(--w-soft); color: var(--w-acc); margin-left: 6px; vertical-align: 1px; }
+.capsule.warn { background: color-mix(in srgb, var(--warn-c) 16%, transparent); color: var(--warn-c); }
+.capsule.gray { background: var(--w-btn); color: var(--w-fg2); }
+.prog { width: 80px; height: 5px; border-radius: 3px; background: var(--w-btn); overflow: hidden; }
+.prog i { display: block; height: 100%; background: var(--w-acc); }
+.mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px; color: var(--w-fg2); }
+.banner { display: flex; align-items: center; gap: 10px; padding: 7px 12px; border-radius: 7px; background: var(--warn-soft); font-size: 12.5px; }
+.banner .i { color: var(--warn-c); }
+.banner .btn { margin-left: auto; }
+.banner.brand { background: var(--w-soft); } .banner.brand .i { color: var(--w-acc); }
+.stat { font-size: 11.5px; } .stat.warn { color: var(--warn-c); } .stat.dim { color: var(--w-fg2); }
+
+/* 按键映射 */
+.scope { display: flex; align-items: center; gap: 10px; font-size: 12.5px; }
+.scope .lbl { color: var(--w-fg2); }
+.scope .sp { flex: 1; }
+.km { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 20px; align-items: start; }
+.remote { width: 130px; }
+.kbadge { width: 30px; height: 30px; border-radius: 7px; background: var(--w-acc); color: #fff; font: 700 12px/30px -apple-system, sans-serif; text-align: center; flex: none; }
+.rec-btn { font-size: 12px; padding: 3px 12px; border-radius: 6px; min-width: 120px; text-align: center; background: var(--w-btn); }
+.rec-btn.live { background: var(--w-acc); color: #fff; }
+.chev { color: var(--w-fg3); }
+
+/* 关于 */
+.about-hero { display: grid; justify-items: center; gap: 6px; padding: 26px 20px 22px; border-radius: 12px; text-align: center;
+  background: radial-gradient(120% 90% at 50% 0%, var(--w-soft), transparent 70%), var(--w-card); border: 1px solid var(--w-cardline); }
+.about-hero svg.big { width: 84px; height: 84px; filter: drop-shadow(0 8px 16px rgba(0,0,0,.18)); }
+.about-hero .wm { font: 700 26px/1.1 "Bricolage Grotesque", -apple-system, sans-serif; margin-top: 6px; }
+.about-hero .tg { font-size: 13.5px; } .about-hero .tg span { color: var(--w-acc); }
+.about-hero .ver { font-size: 11px; color: var(--w-fg2); }
+.steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.step { background: var(--w-card); border: 1px solid var(--w-cardline); border-radius: 10px; padding: 12px; display: grid; gap: 4px; }
+.step .sn { font: 600 10px var(--f-mono); color: var(--w-acc); letter-spacing: .08em; }
+.step b { font-size: 13px; } .step small { font-size: 11px; color: var(--w-fg2); line-height: 1.4; }
+
+/* 外观页的主题色点 */
+.tdots { display: flex; gap: 9px; }
+.tdots i { width: 20px; height: 20px; border-radius: 50%; display: block; position: relative; }
+.tdots i.on::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; border: 2px solid var(--w-fg); }
+.apv { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 12px; }
+.apv figure { margin: 0; display: grid; gap: 6px; justify-items: center; font-size: 11.5px; }
+.apv .thumb { width: 100%; height: 58px; border-radius: 8px; border: 1px solid var(--w-cardline); overflow: hidden; display: grid; grid-template-columns: 30% 70%; }
+.apv figure.on .thumb { box-shadow: 0 0 0 2px var(--w-acc); }
+.apv figure.on { color: var(--w-acc); font-weight: 600; }
+
+/* 表单弹窗 */
+.sheet-scrim { position: absolute; inset: 0; background: rgba(0,0,0,.18); display: grid; justify-items: center; align-items: start; padding-top: 52px; }
+.sheet { background: var(--w-bg); border-radius: 12px; box-shadow: 0 18px 50px rgba(0,0,0,.35), 0 0 0 .5px rgba(0,0,0,.2); }
+.editor { width: 460px; padding: 20px; display: grid; gap: 12px; }
+.editor h6 { margin: 0; font-size: 14px; }
+.ta { min-height: 150px; border-radius: 6px; border: 1px solid var(--w-fieldline); background: var(--w-field); padding: 8px; font-size: 12.5px; line-height: 1.5; }
+.brow { display: flex; gap: 8px; align-items: center; }
+.brow .sp { flex: 1; }
+.preset { width: 560px; display: grid; grid-template-rows: auto 1fr auto; }
+.preset h6 { margin: 0; font-size: 14px; padding: 20px 20px 14px; }
+.preset .pb { display: grid; grid-template-columns: 180px 1fr; border-top: 1px solid var(--w-cardline); border-bottom: 1px solid var(--w-cardline); min-height: 200px; }
+.preset .pl { padding: 12px; border-right: 1px solid var(--w-cardline); }
+.preset .pl div { display: flex; gap: 8px; align-items: center; padding: 6px 8px; border-radius: 6px; background: var(--w-soft); font-size: 12.5px; }
+.preset .pl .i { color: var(--w-acc); }
+.preset .pr { padding: 18px 20px; display: grid; gap: 7px; align-content: start; font-size: 11.5px; }
+.preset .pr .sum { color: var(--w-fg2); margin-bottom: 4px; }
+.preset .pr .pv { display: grid; grid-template-columns: 50px 70px 16px 1fr; gap: 6px; align-items: center; padding: 3px 6px; border-radius: 6px; }
+.preset .pr .pv.conf { background: color-mix(in srgb, var(--warn-c) 16%, transparent); }
+.preset .pf { padding: 12px 20px; }
+
+/* 菜单栏 + 弹层 */
+.menubar { height: 26px; display: flex; align-items: center; justify-content: flex-end; gap: 16px; padding-inline: 12px; font-size: 12.5px; border-radius: 8px 8px 0 0; }
+.mk.light .menubar { background: rgba(236,238,240,.96); color: #1b1b1b; }
+.mk.dark .menubar { background: rgba(38,40,44,.96); color: #f2f2f2; }
+.menubar .mbi { position: relative; display: grid; place-items: center; width: 26px; height: 20px; border-radius: 5px; }
+.menubar .mbi.open { background: rgba(127,127,127,.28); }
+.menubar .mbi svg { width: 17px; height: 17px; }
+.menubar .mbi .red { position: absolute; right: 2px; top: 1px; width: 6px; height: 6px; border-radius: 50%; background: var(--err-c); }
+.popwrap { display: grid; justify-items: end; padding: 6px 10px 10px; border-radius: 0 0 10px 10px; }
+.mk.light .popwrap { background: linear-gradient(160deg, #cfd8dc, #e9edee); }
+.mk.dark .popwrap { background: linear-gradient(160deg, #1d2427, #2d3538); }
+.pop { width: 340px; padding: 14px; border-radius: 12px; display: grid; gap: 12px; backdrop-filter: blur(20px);
+  background: color-mix(in srgb, var(--w-bg) 90%, transparent); box-shadow: 0 12px 34px rgba(0,0,0,.25), 0 0 0 .5px rgba(0,0,0,.2); }
+.pop hr { border: 0; border-top: 1px solid var(--w-cardline); margin: 0; }
+.pop .hd { display: flex; align-items: center; gap: 10px; }
+.pop .hd .lk { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; }
+.pop .hd b { font-size: 14px; }
+.pop .hd .sub { font-size: 11px; color: var(--w-fg2); display: block; font-weight: 400; }
+.pop .kv { display: flex; justify-content: space-between; font-size: 12.5px; }
+.pop .kv span:first-child { color: var(--w-fg2); }
+.pop .kv span:last-child::after { content: " ⌃⌄"; font-size: 8px; color: var(--w-fg2); }
+.pop .pend-h { font-size: 11px; color: var(--w-fg2); }
+.pend { display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; }
+.pend .dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 5px; flex: none; }
+.pend .tx { flex: 1; min-width: 0; }
+.pend .tx small { display: block; color: var(--w-fg2); font-size: 11px; line-height: 1.4; }
+.pend .tr { display: flex; gap: 6px; align-items: center; }
+.pend .trash { color: var(--w-fg2); }
+.guide { display: grid; gap: 6px; font-size: 12px; }
+.guide b { display: flex; gap: 6px; align-items: center; color: var(--warn-c); font-size: 12.5px; }
+.guide p { color: var(--w-fg2); line-height: 1.55; }
+.foot { display: flex; justify-content: space-between; font-size: 12.5px; }
+.foot span { padding: 2px 6px; border-radius: 5px; }
+.foot kbd { font: 11px -apple-system, sans-serif; color: var(--w-fg2); margin-left: 6px; }
+
+/* 浮条 */
+.stage { border-radius: 14px; padding: 22px 14px; display: grid; gap: 12px; justify-items: center; }
+.stage.l { background: linear-gradient(135deg, #F7F7F5 0%, #E3E8EA 58%, #2A3136 58.2%, #1E2428 100%); }
+.stage.d { background: linear-gradient(135deg, #1B2024 0%, #111518 58%, #EEF1F2 58.2%, #FFFFFF 100%); }
+.fbar { --c: var(--acc); display: inline-flex; align-items: center; gap: 10px; height: 44px; padding: 0 16px 0 4px; border-radius: 22px; max-width: 100%;
+  background: rgba(255,255,255,.82); color: #13201F; backdrop-filter: blur(20px) saturate(1.6); -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  border: 1px solid color-mix(in srgb, var(--c) 55%, transparent); box-shadow: 0 8px 22px rgba(0,0,0,.18), inset 0 0 0 .5px rgba(255,255,255,.6); font: 13px -apple-system, "PingFang SC", sans-serif; }
+.stage.d .fbar { --c: var(--acc-d); background: rgba(30,40,44,.8); color: #E7EEEF; box-shadow: 0 8px 22px rgba(0,0,0,.5), inset 0 0 0 .5px rgba(255,255,255,.08); }
+.fbar .ball { width: 34px; height: 34px; border-radius: 50%; background: var(--c); display: grid; place-items: center; flex: none; color: #fff; margin-left: 2px; }
+.fbar .ball svg { width: 18px; height: 18px; }
+.fbar b { font-weight: 600; white-space: nowrap; }
+.fbar span { opacity: .62; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.fbar.trans .ball { background: color-mix(in srgb, var(--c) 18%, transparent); color: var(--c); }
+.fbar.polish .ball { background: linear-gradient(135deg, var(--c), color-mix(in srgb, var(--c) 50%, #fff)); }
+.stage .fbar.ok { --c: #1D9A57; } .stage.d .fbar.ok { --c: #3CC97D; }
+.stage .fbar.warn { --c: #C27400; } .stage.d .fbar.warn { --c: #F0A43A; }
+.stage .fbar.note { --c: #6B7A7E; } .stage.d .fbar.note { --c: #7F9297; }
+.fbar.note .ball, .fbar.warn .ball { background: color-mix(in srgb, var(--c) 20%, transparent); color: var(--c); }
+.picker { width: 300px; padding: 8px 0 0; border-radius: 16px; background: rgba(255,255,255,.86); color: #13201F; backdrop-filter: blur(20px);
+  box-shadow: 0 10px 28px rgba(0,0,0,.2), 0 0 0 .5px rgba(0,0,0,.12); font: 14px -apple-system, "PingFang SC", sans-serif; }
+.stage.d .picker { background: rgba(30,40,44,.86); color: #E7EEEF; }
+.picker .it { display: flex; align-items: center; gap: 9px; height: 34px; margin: 0 6px; padding: 0 12px; border-radius: 9px; }
+.picker .it .o { width: 13px; height: 13px; border-radius: 50%; border: 1.5px solid currentColor; opacity: .45; flex: none; }
+.picker .it.on { background: var(--acc); color: #fff; font-weight: 600; }
+.stage.d .picker .it.on { background: var(--acc-d); }
+.picker .it.on .o { opacity: 1; background: #fff; border-color: #fff; box-shadow: inset 0 0 0 3px var(--acc); }
+.stage.d .picker .it.on .o { box-shadow: inset 0 0 0 3px var(--acc-d); }
+.picker .ft { font-size: 11px; opacity: .6; padding: 6px 18px 8px; }
+.lv rect { animation: lv 1s ease-in-out infinite; transform-origin: center; transform-box: fill-box; }
+.lv rect:nth-child(2) { animation-delay: -.3s; } .lv rect:nth-child(3) { animation-delay: -.6s; }
+@keyframes lv { 50% { transform: scaleY(.45); } }
+.spin { animation: spin 1.1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .lv rect, .spin { animation: none; } }
+
+/* 分发 */
+.dmg { width: 620px; border-radius: 12px; overflow: hidden; box-shadow: var(--w-shadow); background: var(--w-bg); }
+.dmg .tb { height: 32px; display: flex; align-items: center; gap: 8px; padding-inline: 12px; background: var(--w-side); border-bottom: 1px solid var(--w-cardline); font-size: 12.5px; }
+.dmg .tb .t { flex: 1; text-align: center; font-weight: 600; margin-right: 52px; }
+.dmg .bgv { height: 330px; position: relative; display: grid; grid-template-columns: 1fr 1fr; align-items: center; justify-items: center; }
+.dmg .bgv figure { margin: 0; display: grid; justify-items: center; gap: 8px; font-size: 12.5px; z-index: 1; }
+.dmg .arrow { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); color: var(--w-acc); z-index: 1; }
+.dmg .hint { position: absolute; bottom: 16px; left: 0; right: 0; text-align: center; font-size: 11.5px; color: var(--w-fg2); z-index: 1; }
+.gh { width: 760px; border-radius: 12px; overflow: hidden; border: 1px solid var(--w-cardline); background: var(--w-bg); }
+.gh .gtb { height: 34px; border-bottom: 1px solid var(--w-cardline); display: flex; align-items: center; gap: 8px; padding-inline: 14px; font: 12px var(--f-mono); color: var(--w-fg2); background: var(--w-side); }
+.gh .gtb .tabs { display: flex; gap: 14px; margin-left: 12px; font-family: -apple-system, sans-serif; }
+.gh .gtb .tabs span.on { color: var(--w-fg); font-weight: 600; border-bottom: 2px solid var(--w-acc); padding-bottom: 7px; margin-bottom: -9px; }
+.gh .gbody { padding: 30px 24px 26px; display: grid; justify-items: center; gap: 10px; text-align: center; }
+.gh h4 { margin: 0; font: 700 30px "Bricolage Grotesque", -apple-system, sans-serif; }
+.gh .lang { font-size: 12.5px; color: var(--w-fg2); } .gh .lang a { color: var(--w-acc); text-decoration: none; }
+.badges { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+.badge { display: inline-flex; font: 600 11px/1 -apple-system, sans-serif; border-radius: 4px; overflow: hidden; }
+.badge b { background: #2B3A3F; color: #fff; padding: 5px 7px; }
+.badge em { background: var(--acc); color: #fff; padding: 5px 7px; font-style: normal; }
+.rel { width: 760px; border-radius: 12px; border: 1px solid var(--w-cardline); background: var(--w-bg); padding: 20px 24px; display: grid; gap: 12px; font-size: 13px; }
+.rel h4 { margin: 0; font-size: 20px; display: flex; gap: 10px; align-items: center; }
+.rel .latest { font-size: 11px; padding: 2px 8px; border-radius: 99px; border: 1px solid var(--ok-c); color: var(--ok-c); font-weight: 600; }
+.rel h5 { margin: 6px 0 0; font-size: 14px; }
+.rel ol { margin: 0; padding-left: 1.3em; display: grid; gap: 4px; color: var(--w-fg); }
+.rel pre { margin: 0; background: var(--w-side); border-radius: 6px; padding: 8px 10px; font: 11.5px ui-monospace, Menlo, monospace; overflow: hidden; }
+.assets { border: 1px solid var(--w-cardline); border-radius: 8px; }
+.assets div { display: flex; gap: 10px; align-items: center; padding: 7px 12px; font-size: 12.5px; }
+.assets div + div { border-top: 1px solid var(--w-cardline); }
+.assets .sz { margin-left: auto; color: var(--w-fg2); font-size: 11.5px; }
+.assets .i { color: var(--w-acc); }
+
+/* 清单 */
+.chg { overflow-x: auto; }
+.chg table { min-width: 720px; }
+.chg td:first-child { font-weight: 600; white-space: nowrap; }
+.ask { background: var(--a-soft); border-radius: 16px; padding: 22px; display: grid; gap: 12px; }
+.ask ol { margin: 0; padding-left: 1.3em; display: grid; gap: 8px; max-width: 74ch; }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="g-live" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" style="stop-color: var(--a-top)"/><stop offset="1" style="stop-color: var(--a-bot)"/>
+    </linearGradient>
+    <g id="glyph">
+      <rect x="17" y="40" width="9" height="20" rx="4.5"/>
+      <rect x="31" y="28" width="9" height="44" rx="4.5"/>
+      <rect x="45" y="36" width="9" height="28" rx="4.5"/>
+      <rect x="66" y="21" width="8" height="58" rx="4"/>
+      <rect x="59" y="18" width="22" height="7" rx="3.5"/>
+      <rect x="59" y="75" width="22" height="7" rx="3.5"/>
+    </g>
+    <symbol id="appicon" viewBox="0 0 100 100"><rect width="100" height="100" rx="22.5" fill="url(#g-live)"/><use href="#glyph" fill="#fff"/></symbol>
+    <linearGradient id="alu" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#b3b3b3"/><stop offset=".25" stop-color="#dbdbdb"/><stop offset=".5" stop-color="#ededed"/><stop offset=".75" stop-color="#dedede"/><stop offset="1" stop-color="#adadad"/>
+    </linearGradient>
+    <linearGradient id="darkkey" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#454545"/><stop offset="1" stop-color="#212121"/></linearGradient>
+  </defs>
+</svg>
+
+<nav class="ctl" aria-label="样稿控制">
+  <div class="ctl-in">
+    <label>色系</label><div class="chips" id="chips"></div>
+    <label>样稿外观</label>
+    <div class="pseg" id="appear"><button type="button" data-ap="light" aria-pressed="true">浅色</button><button type="button" data-ap="dark" aria-pressed="false">深色</button></div>
+    <div class="toc"><a href="#brand">品牌</a><a href="#color">色系与主题</a><a href="#menu">菜单栏</a><a href="#float">浮条</a><a href="#settings">设置窗口</a><a href="#dist">分发</a><a href="#changes">改动</a></div>
+  </div>
+</nav>
+
+<div class="wrap" id="live">
+
+<header class="hero" id="brand">
+  <svg class="icon" viewBox="0 0 100 100" role="img" aria-label="MiVibe 应用图标"><use href="#appicon"/></svg>
+  <div>
+    <div class="eyebrow">MiVibe 设计系统 · 第三版 · 待确认</div>
+    <h1>MiVibe</h1>
+    <div class="tag">按住说话，<span>松手成文。</span></div>
+    <p>这一版把品牌、色系、主题和所有窗口合到一起。窗口沿用现在的版式和控件位置，只换品牌层：图标、强调色、状态色和几处空页面。用顶部控制条切换色系和样稿的浅色、深色，下面所有样稿一起变。</p>
+  </div>
+</header>
+
+<section>
+  <div class="eyebrow">品牌</div>
+  <h2>标志、图标与菜单栏</h2>
+  <div class="board">
+    <div class="two">
+      <div style="display:grid;gap:12px">
+        <h3>应用图标</h3>
+        <div class="icons-row">
+          <figure><svg viewBox="0 0 100 100" width="92" height="92"><use href="#appicon"/></svg><figcaption>默认</figcaption></figure>
+          <figure><svg viewBox="0 0 100 100" width="92" height="92"><rect width="100" height="100" rx="22.5" fill="#101A1E"/><use href="#glyph" style="fill: var(--a-dark)"/></svg><figcaption>深色图标</figcaption></figure>
+          <figure><svg viewBox="0 0 100 100" width="32" height="32"><use href="#appicon"/></svg><figcaption>32</figcaption></figure>
+          <figure><svg viewBox="0 0 100 100" width="16" height="16"><use href="#appicon"/></svg><figcaption>16</figcaption></figure>
+        </div>
+        <p class="cap">三根声波接一个文本光标，意思是声音变成文字。图标按苹果圆角矩形满铺，内容边缘 865 / 1024，在程序坞里和系统应用一样大。</p>
+      </div>
+      <div style="display:grid;gap:12px">
+        <h3>程序坞</h3>
+        <div class="dock l"><svg viewBox="0 0 100 100"><rect width="100" height="100" rx="22.5" fill="#fff"/><rect x="18" y="18" width="64" height="64" rx="14" fill="#F2B632"/></svg><svg viewBox="0 0 100 100"><use href="#appicon"/></svg><svg viewBox="0 0 100 100"><rect width="100" height="100" rx="22.5" fill="#3B3B3F"/><circle cx="50" cy="50" r="26" fill="none" stroke="#fff" stroke-width="7"/></svg></div>
+        <div class="dock d"><svg viewBox="0 0 100 100"><rect width="100" height="100" rx="22.5" fill="#fff"/><rect x="18" y="18" width="64" height="64" rx="14" fill="#F2B632"/></svg><svg viewBox="0 0 100 100"><rect width="100" height="100" rx="22.5" fill="#101A1E"/><use href="#glyph" style="fill: var(--a-dark)"/></svg><svg viewBox="0 0 100 100"><rect width="100" height="100" rx="22.5" fill="#3B3B3F"/><circle cx="50" cy="50" r="26" fill="none" stroke="#fff" stroke-width="7"/></svg></div>
+        <p class="cap">两侧是示意用的占位图标。</p>
+      </div>
+    </div>
+    <div style="display:grid;gap:10px">
+      <h3>菜单栏图标：单色模板图，不用品牌色</h3>
+      <div class="mbline" id="mbline"></div>
+      <p class="cap">跟随系统菜单栏自动反色。有待处理内容时右上角加一个红点，沿用现在的规则。</p>
+    </div>
+  </div>
+</section>
+
+<section id="color">
+  <div class="eyebrow">色系与主题</div>
+  <h2>一种主题色管过程，语义色只管结果</h2>
+  <p class="lead">主题色用在正在听、正在转写、正在改写三个进行中的状态，以及窗口里的选中项、开关、主要按钮和图标。已输入、需处理、出错、提示四种语义色固定，任何主题下都不变。六套色系都会放进「外观」页供用户选择，默认那一套也用在应用图标、README 和 GitHub 上。</p>
+  <div class="pal" id="pal"></div>
+  <div class="tokens">
+    <table>
+      <thead><tr><th>令牌</th><th>用途</th><th>浅色</th><th>深色</th></tr></thead>
+      <tbody id="tokrows"></tbody>
+    </table>
+  </div>
+</section>
+
+<section id="menu">
+  <div class="eyebrow">场景 1</div>
+  <h2>菜单栏与菜单弹层</h2>
+  <p class="lead">布局、宽度（340）和各行顺序不变。品牌化的地方：顶部状态从一个彩色麦克风换成品牌图标加连接状态；待处理项的状态点改用新的状态色；引导卡片改成琥珀浅底，更容易看到。</p>
+  <div class="three" id="menus"></div>
+</section>
+
+<section id="float">
+  <div class="eyebrow">场景 2</div>
+  <h2>浮条与模式选单</h2>
+  <p class="lead">沿用毛玻璃底、状态色细描边、随内容伸缩的宽度。三个进行中状态统一用主题色，靠图标和动效区分；结果状态用语义色。模式选单的高亮行改用主题色。</p>
+  <div class="two" id="floats"></div>
+</section>
+
+<section id="settings">
+  <div class="eyebrow">场景 3</div>
+  <h2>设置窗口</h2>
+  <p class="lead">尺寸 850 × 600、侧栏 210、分组卡片、行高和间距都照现在的实现。改动集中在四处：侧栏顶部的设备卡换成品牌图标和状态胶囊；系统蓝换成主题色；横幅和状态图标用语义色；新增「外观」页，并重做空着的「关于」页。</p>
+  <div id="wins" style="display:grid;gap:36px"></div>
+</section>
+
+<section id="dist">
+  <div class="eyebrow">场景 4</div>
+  <h2>分发：DMG、README 与发布页</h2>
+  <p class="lead">仓库和安装包用同一套品牌。README 的主图从小米产品照换成自绘插画；DMG 窗口加品牌背景和拖拽箭头；发布页开头是安装说明。</p>
+  <div id="dists" style="display:grid;gap:28px"></div>
+</section>
+
+<section id="changes">
+  <div class="eyebrow">改动清单</div>
+  <h2>和现在相比改了什么</h2>
+  <div class="chg">
+    <table>
+      <thead><tr><th>位置</th><th>现在</th><th>改为</th><th>涉及文件</th></tr></thead>
+      <tbody>
+        <tr><td>应用图标</td><td>系统麦克风符号，蓝紫渐变，四周留透明边</td><td>声波光标标志，主题色渐变，满铺圆角矩形；另出深色图标</td><td><code>Scripts/make-icon.swift</code></td></tr>
+        <tr><td>色彩来源</td><td>系统强调色（蓝）和散落的 RGB 值</td><td>集中的品牌色板：六套主题色加固定语义色，每套分浅色、深色两组取值</td><td>新增 <code>BrandPalette.swift</code>，改 <code>AppState.swift</code></td></tr>
+        <tr><td>浮条</td><td>听 / 转写 / 改写为蓝、紫、紫</td><td>三者同为主题色，图标和动效区分；提示、需处理用浅底加彩色图标</td><td><code>FloatPanel.swift</code></td></tr>
+        <tr><td>菜单栏图标</td><td>mic / mic.slash / mic.badge.plus</td><td>声波光标模板图：已连接、正在听（跳动）、未连接（淡）、未配对（加号）</td><td><code>MiVibeApp.swift</code>、新增图标资源</td></tr>
+        <tr><td>菜单弹层</td><td>彩色麦克风加状态文字</td><td>品牌图标加状态胶囊；引导卡片用琥珀浅底；主要按钮用主题色</td><td><code>MenuPopover.swift</code></td></tr>
+        <tr><td>设置侧栏</td><td>设备卡显示通用图标，选中项是系统蓝</td><td>品牌图标加状态胶囊；选中项、导航图标用主题色；新增「外观」</td><td><code>SettingsSidebar.swift</code>、<code>SettingsView.swift</code></td></tr>
+        <tr><td>设置控件</td><td>分段、单选、复选、推荐标签都是系统蓝</td><td>统一用主题色（设置窗口 tint）；保存、套用等主要按钮用主题色填充</td><td><code>SettingsComponents.swift</code> 等各页</td></tr>
+        <tr><td>横幅与状态</td><td>橙色 12% 底；成功、失败用系统绿、红</td><td>琥珀浅底；已授权、通过、失败用固定语义色</td><td><code>SettingsComponents.swift</code>、<code>SettingsRemote.swift</code></td></tr>
+        <tr><td>遥控器插图</td><td>选中和绑定描边是系统蓝</td><td>机身保持铝色（它画的是实物）；选中、绑定描边用主题色</td><td><code>RemoteControlView.swift</code></td></tr>
+        <tr><td>关于页</td><td>两行信息，下方大片空白</td><td>品牌头图（图标、字标、标语、版本）、三步用法、链接</td><td><code>SettingsView.swift</code></td></tr>
+        <tr><td>外观页（新）</td><td>无</td><td>界面外观（跟随系统 / 浅 / 深）、主题色、浮条描边开关；配置新增可选字段</td><td>新增 <code>SettingsAppearance.swift</code>，<code>Config.swift</code></td></tr>
+        <tr><td>README / GitHub</td><td>小米产品照；徽章黑、橙、绿三色</td><td>自绘主图（浅 / 深两张）；徽章统一墨色加主题色；社交预览图</td><td><code>docs/images/</code>、<code>README*.md</code></td></tr>
+        <tr><td>DMG</td><td>系统默认窗口，只有图标</td><td>品牌背景、拖拽箭头、固定图标位置</td><td><code>Scripts/make-dmg.sh</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="ask">
+  <div class="eyebrow">需要你定</div>
+  <ol>
+    <li>默认色系选哪一套？图标、README 和 GitHub 用它。</li>
+    <li>「外观」页里放全部六套，还是只放其中几套？</li>
+    <li>浮条要不要允许固定为浅色或深色，还是只跟随系统？</li>
+    <li>DMG 背景需要在本机生成一次窗口布局文件再入库，CI 直接复用。做不做这一项？</li>
+  </ol>
+</section>
+
+</div>
+
+<script>
+const PALETTES = [
+  { id: "tide", name: "潮汐青", a: "#0C98A8", strong: "#08717F", soft: "#D7F1F2", softDark: "#0F3439", top: "#16B4C2", bot: "#086978", dark: "#22B8C6", rec: true, note: "冷静、清爽；和系统蓝、成功绿、琥珀都拉得开。" },
+  { id: "indigo", name: "靛蓝", a: "#4F5BD5", strong: "#3A44B0", soft: "#E3E5FB", softDark: "#1E2350", top: "#6272F0", bot: "#3B3FB8", dark: "#8591F5", note: "延续现有图标，最熟悉；和系统强调色较近。" },
+  { id: "coral", name: "珊瑚", a: "#E0503A", strong: "#B83A27", soft: "#FBE3DE", softDark: "#43201A", top: "#FF7157", bot: "#C9362A", dark: "#FF7A62", note: "像录音红点，最直观；容易和出错、小米橙混。" },
+  { id: "orchid", name: "兰紫", a: "#8A4FD6", strong: "#6C38B3", soft: "#EEE3FB", softDark: "#2E1D4A", top: "#A56BF0", bot: "#6A33B8", dark: "#B48AF5", note: "偏创作气质，贴合改写；紫色 AI 产品较多。" },
+  { id: "rose", name: "玫瑰", a: "#D2457A", strong: "#A93360", soft: "#FADFE9", softDark: "#45192B", top: "#EC5F93", bot: "#B02F63", dark: "#F27AA6", note: "少见、有辨识度；偏个人化。" },
+  { id: "graphite", name: "石墨", a: "#2E3A40", strong: "#2E3A40", soft: "#E1E6E8", softDark: "#222C31", top: "#46545B", bot: "#1B2327", dark: "#D5DEE1", note: "单色克制，只有结果色是彩色；进行中存在感弱。" },
+];
+
+// ───── 图标（按 SF Symbols 的意象手绘，24 网格）─────
+const P = {
+  waveform: '<path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2"/>',
+  sparkles: '<path d="M10 3l1.6 4.8L16 9.4l-4.4 1.6L10 16l-1.6-5L4 9.4l4.4-1.6z"/><path d="M18 14l.8 2.2 2.2.8-2.2.8L18 20l-.8-2.2-2.2-.8 2.2-.8z"/>',
+  keyboard: '<rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 10h.01M9 10h.01M12 10h.01M15 10h.01M18 10h.01M7 14h10"/>',
+  remote: '<rect x="8" y="2.5" width="8" height="19" rx="2.5"/><circle cx="12" cy="8" r="1.8"/><path d="M11 13h2M11 16h2"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.6v.01"/>',
+  palette: '<path d="M12 3a9 9 0 1 0 0 18c1.2 0 1.8-.8 1.8-1.7 0-1.3-1-1.5-1-2.6 0-1 .8-1.7 1.8-1.7H17a4 4 0 0 0 4-4C21 6.6 17 3 12 3z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10" cy="7" r="1"/><circle cx="15" cy="7.3" r="1"/>',
+  chip: '<rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/>',
+  down: '<circle cx="12" cy="12" r="9"/><path d="M12 7.5v8M8.5 12.5 12 16l3.5-3.5"/>',
+  circle: '<circle cx="12" cy="12" r="8.5"/>',
+  key: '<circle cx="8" cy="12" r="4"/><path d="M12 12h9M18 12v3M21 12v2"/>',
+  check2: '<circle cx="12" cy="12" r="9"/><path d="m8 12.2 2.8 2.8L16.5 9.5"/>',
+  link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
+  character: '<path d="M5 19 10.5 5h1L17 19M7.3 14h7.4"/>',
+  arrowR: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  minusC: '<circle cx="12" cy="12" r="9"/><path d="M8 12h8"/>',
+  grid: '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
+  globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/>',
+  cpu: '<rect x="5" y="5" width="14" height="14" rx="2.5"/><rect x="9" y="9" width="6" height="6" rx="1"/>',
+  pencil: '<path d="M4 20l1-4L16 5l3 3L8 19z"/>',
+  hand: '<path d="M8 13V6.5a1.5 1.5 0 0 1 3 0V11V4.5a1.5 1.5 0 0 1 3 0V11V6a1.5 1.5 0 0 1 3 0v8a7 7 0 0 1-7 7c-2.5 0-3.8-1-5.2-2.8L3 15a1.6 1.6 0 0 1 2.4-2z"/>',
+  antenna: '<circle cx="12" cy="12" r="1.5"/><path d="M8.5 8.5a5 5 0 0 0 0 7M15.5 8.5a5 5 0 0 1 0 7M5.5 5.5a9 9 0 0 0 0 13M18.5 5.5a9 9 0 0 1 0 13"/>',
+  warn: '<path d="M12 3.5 21.5 20h-19z"/><path d="M12 10v4.5M12 17.2v.01"/>',
+  xC: '<circle cx="12" cy="12" r="9"/><path d="m9 9 6 6M15 9l-6 6"/>',
+  dotted: '<circle cx="12" cy="12" r="8.5" stroke-dasharray="2.2 2.6"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  dots: '<path d="M6 12h.01M12 12h.01M18 12h.01"/>',
+  up: '<path d="M12 19V5M6 11l6-6 6 6"/>', dn: '<path d="M12 5v14M6 13l6 6 6-6"/>', lf: '<path d="M19 12H5M11 6l-6 6 6 6"/>', rt: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
+  uturn: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
+  volp: '<path d="M4 9.5h3l4-3.5v12l-4-3.5H4z"/><path d="M15 12h6M18 9v6"/>',
+  volm: '<path d="M4 9.5h3l4-3.5v12l-4-3.5H4z"/><path d="M15 12h6"/>',
+  house: '<path d="M4 11 12 4l8 7M6 9.5V20h12V9.5"/>',
+  lines: '<path d="M5 7h14M5 12h14M5 17h14"/>',
+  tv: '<rect x="3" y="5" width="18" height="12" rx="2"/><path d="M9 20h6"/>',
+  bolt: '<path d="M13 3 5 13.5h6L10 21l8-10.5h-6z"/>',
+  branch: '<path d="M6 4v8a4 4 0 0 0 4 4h8M14 12l4 4-4 4"/>',
+  trash: '<path d="M5 7h14M10 7V4.5h4V7M7 7l1 13h8l1-13"/>',
+  wand: '<path d="m4 20 11-11M14 4v3M12.5 5.5h3M19 9v3M17.5 10.5h3"/>',
+  appb: '<rect x="4" y="4" width="16" height="16" rx="4"/><circle cx="18" cy="6" r="2.6" fill="currentColor" stroke="none"/>',
+  mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/>',
+  github: '<path d="M9 19c-4 1.3-4-2-6-2.5M15 21v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6 0 0 0-1.3-3.2 4.2 4.2 0 0 0-.1-3.2s-1-.3-3.4 1.3a11.6 11.6 0 0 0-6.2 0C6.6 2.8 5.6 3.1 5.6 3.1a4.2 4.2 0 0 0-.1 3.2A4.6 4.6 0 0 0 4.2 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/>',
+  doc: '<path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M9.5 12h6M9.5 16h6"/>',
+  box: '<path d="M4 7.5 12 3l8 4.5v9L12 21l-8-4.5z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/>',
+};
+const FILLED = new Set([]);
+const ic = (n, cls = "") => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${P[n] || ""}</svg>`;
+const icF = (n, cls = "") => `<svg class="i f ${cls}" viewBox="0 0 24 24" aria-hidden="true">${n}</svg>`;
+const okDot = `<svg class="i f ok-i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><path d="m8 12.2 2.8 2.8L16.5 9.5" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const errDot = `<svg class="i f err-i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><path d="m9 9 6 6M15 9l-6 6" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/></svg>`;
+const warnTri = `<svg class="i f warn-i" viewBox="0 0 24 24"><path d="M12 3 22 20.5H2z"/><path d="M12 10v4.5M12 17.4v.01" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/></svg>`;
+const accCheck = `<svg class="i f" viewBox="0 0 24 24" style="color:var(--w-acc)"><circle cx="12" cy="12" r="9.5"/><path d="m8 12.2 2.8 2.8L16.5 9.5" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const glyphSvg = (extra = "", cls = "") => `<svg viewBox="0 0 100 100" class="${cls}" fill="currentColor">${extra || '<use href="#glyph"/>'}</svg>`;
+const glyphBars = '<rect x="17" y="40" width="9" height="20" rx="4.5"/><rect x="31" y="28" width="9" height="44" rx="4.5"/><rect x="45" y="36" width="9" height="28" rx="4.5"/><rect x="66" y="21" width="8" height="58" rx="4"/><rect x="59" y="18" width="22" height="7" rx="3.5"/><rect x="59" y="75" width="22" height="7" rx="3.5"/>';
+const MB = {
+  on: glyphSvg(),
+  rec: glyphSvg(glyphBars, "lv"),
+  off: glyphSvg('<g fill-opacity=".38"><use href="#glyph"/></g>'),
+  new: glyphSvg('<g fill-opacity=".38"><use href="#glyph"/></g><circle cx="80" cy="80" r="17"/><path d="M80 72v16M72 80h16" stroke="var(--mbbg, #ECEEF0)" stroke-width="5" stroke-linecap="round"/>'),
+};
+
+// ───── 组件 ─────
+const row = ({ i = "", ic2 = "", t, s = "", sz = "", cap = "", tr = "", cls = "" }) =>
+  `<div class="row ${cls}">${i || ic2 ? `<span class="ri">${ic2 || ic(i)}</span>` : ""}<div class="rt">${t}${sz ? `<span class="sz">${sz}</span>` : ""}${cap}${s ? `<small>${s}</small>` : ""}</div>${tr ? `<div class="tr">${tr}</div>` : ""}</div>`;
+const grp = (t, rows, f = "") => `<div class="grp">${t ? `<div class="gt">${t}</div>` : ""}<div class="card">${rows.join("")}</div>${f ? `<div class="gf">${f}</div>` : ""}</div>`;
+const btn = (l, k = "") => `<span class="btn ${k}">${l}</span>`;
+
+const NAV = [["识别", "waveform"], ["改写", "sparkles"], ["按键映射", "keyboard"], ["遥控器", "remote"], ["外观", "palette", true], ["关于", "info"]];
+function win({ pane, link = "off", content, cls = "", overlay = "" }) {
+  const st = { on: ["on", "已连接"], off: ["off", "已配对 · 未连接"], new: ["new", "未配对"] }[link];
+  const nav = NAV.map(([n, i, isNew]) => `<div class="nav ${n === pane ? "on" : ""}">${ic(i)}${n}${isNew ? '<span class="tagnew">新</span>' : ""}</div>`).join("");
+  return `<div class="win ${cls}">
+    <div class="side"><div class="lights"><i></i><i></i><i></i></div>
+      <div class="dev"><svg class="appi" viewBox="0 0 100 100"><use href="#appicon"/></svg><div><b>MiVibe</b><span class="pillst ${st[0]}"><i></i>${st[1]}</span></div></div>
+      ${nav}</div>
+    <div class="detail"><div class="tbar"><div class="navbtn"><span>${ic("lf")}</span><span class="dim">${ic("rt")}</span></div><h5>${pane}</h5></div>
+      <div class="content">${content}</div></div>${overlay}</div>`;
+}
+
+// ───── 设置页内容 ─────
+const paneRecognitionLocal = () => `
+  <div class="phead">选择识别引擎，管理 API Key、本地模型与关键词纠正。</div>
+  ${grp("识别引擎", [`<div class="row plain"><div class="seg2"><span>豆包语音（云端）</span><span class="on">本地识别（离线）</span></div></div>`], "本地识别完全离线，音频不出本机。识别失败不会自动回退云端。")}
+  ${grp("本地识别", [
+    row({ i: "cpu", t: "本机配置", s: "24 GB 内存 · Apple Silicon" }),
+    row({ ic2: ic("down", "dim-i"), t: "Tiny", sz: "77.7 MB", s: "最快 · 错字较多，适合应急", tr: btn("下载") }),
+    row({ ic2: ic("down", "dim-i"), t: "Base", sz: "148 MB", s: "快 · 日常短句够用", tr: `<span class="prog"><i style="width:62%"></i></span><span class="mono">62%</span>${btn("取消")}` }),
+    row({ ic2: ic("circle", "dim-i"), t: "Small", sz: "487.6 MB", cap: '<span class="capsule">推荐</span>', s: "较快 · 质量与速度的平衡点", tr: btn("使用") + btn("删除") }),
+    row({ ic2: warnTri, t: "Medium", sz: "1.53 GB", s: '<span style="color:var(--err-c)">下载失败：网络连接中断</span>', tr: btn("重试") }),
+    row({ ic2: accCheck, t: "Large (Turbo)", sz: "1.62 GB", s: "中速 · 接近最高质量，M 系芯片甜点位", tr: btn("使用中", "dis") + btn("删除") }),
+  ], "模型保存在 ~/Library/Application Support/MiVibe/models。首次本地识别需编译 GPU 内核，较慢（约 15 秒），之后恢复正常。")}
+  ${grp("关键词纠正", [
+    row({ i: "character", t: "考戴克斯", tr: `<span class="dim-i">${ic("arrowR")}</span><b style="font-weight:500">Codex</b><span class="err-i">${ic("minusC")}</span>` }),
+    `<div class="row plain"><span class="fld ph" style="width:220px">误识别，例如：考戴克斯</span><span class="dim-i">${ic("arrowR")}</span><span class="fld ph" style="width:220px">正确写法，例如：Codex</span>${btn("添加", "dis")}</div>`,
+  ])}`;
+
+const paneRecognitionDoubao = () => `
+  <div class="phead">选择识别引擎，管理 API Key、本地模型与关键词纠正。</div>
+  ${grp("识别引擎", [`<div class="row plain"><div class="seg2"><span class="on">豆包语音（云端）</span><span>本地识别（离线）</span></div></div>`], "豆包语音为云端服务，按使用量计费。")}
+  ${grp("豆包语音", [
+    row({ i: "key", t: "API Key", s: '<span style="color:var(--ok-c)">已保存</span>', tr: `<span class="fld ph" style="width:150px">粘贴 API Key</span>${btn("保存", "pri dis")}` }),
+    row({ i: "check2", t: "二遍识别", s: "更准的标点分句，尾延迟约 +0.6s", tr: '<span class="tog on"></span>' }),
+    row({ i: "link", t: "申请 Key", s: "火山引擎语音控制台", tr: btn("打开…") }),
+  ], "Key 存在 ~/.config/mivibe/config.json（明文）。二遍识别换来更准的标点分句，尾延迟约 +0.6s（实测 0.77s）。")}`;
+
+const paneRewrite = () => `
+  <div class="phead">转写完成后、注入前交给语言模型处理；可自定义模式与服务商。</div>
+  ${grp("改写模式", [
+    row({ ic2: '<span class="radio"></span>', t: "原文直出" }),
+    row({ ic2: '<span class="radio on"></span>', t: "转录整理", tr: `<span class="dim-i">${ic("pencil")}</span>` }),
+    row({ ic2: '<span class="radio"></span>', t: "正式书面", cap: '<span class="capsule warn">已调整</span>', tr: `<span class="dim-i">${ic("pencil")}</span>` }),
+    row({ ic2: '<span class="radio"></span>', t: "简洁", tr: `<span class="dim-i">${ic("pencil")}</span>` }),
+    row({ ic2: '<span class="radio"></span>', t: "翻译为英文", tr: `<span class="dim-i">${ic("pencil")}</span>` }),
+    row({ ic2: '<span class="radio"></span>', t: "Vibe Coding", tr: `<span class="dim-i">${ic("pencil")}</span>` }),
+    row({ ic2: '<span class="radio"></span>', t: "邮件语气", cap: '<span class="capsule gray">自定义</span>', tr: `<span class="dim-i">${ic("pencil")}</span>` }),
+  ], "「原文直出」不调用 LLM。点铅笔可查看并调整每个模式的提示词。遥控器菜单键可呼出模式选单快速切换。")}
+  ${grp("LLM 服务商", [
+    row({ i: "grid", t: "服务商模板", tr: '<span class="sel-m">DeepSeek</span>' }),
+    row({ i: "link", t: "接口地址", tr: '<span class="fld">https://api.deepseek.com/v1</span>' }),
+    row({ i: "key", t: "API Key", tr: '<span class="fld">••••••••••••••••</span>' }),
+    row({ i: "cpu", t: "模型", tr: '<span class="fld">deepseek-chat</span>' }),
+    row({ i: "info", t: "状态", s: '<span style="color:var(--ok-c)">已配置</span>', tr: btn("保存", "pri") }),
+  ], "支持 OpenAI 兼容与 Anthropic 两种协议。改写请求 5 秒超时；超时或失败时注入原始转写文本，绝不丢弃。")}`;
+
+function remoteSvg(sel = "confirm") {
+  const acc = "var(--w-acc)";
+  const key = (id, cx, cy, d, face, glyph) => {
+    const on = id === sel, bound = ["back", "menu", "up", "down"].includes(id);
+    const stroke = on ? "rgba(255,255,255,.9)" : bound ? acc : "none";
+    const fill = on ? `color-mix(in srgb, ${acc} 80%, transparent)` : face;
+    return `<circle cx="${cx}" cy="${cy}" r="${d / 2}" fill="${fill}" stroke="${stroke}" stroke-width="${on || bound ? 1.4 : 0}"/>${glyph ? `<g transform="translate(${cx - 6} ${cy - 6}) scale(.5)" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${glyph}</g>` : `<circle cx="${cx}" cy="${cy}" r="1" fill="#fff" fill-opacity=".7"/>`}`;
+  };
+  return `<svg class="remote" viewBox="0 0 100 290" aria-label="遥控器插图">
+    <rect x="1" y="1" width="98" height="288" rx="14" fill="url(#alu)" stroke="rgba(0,0,0,.18)"/>
+    <circle cx="25" cy="30" r="11.5" fill="#d8d8d8" stroke="#6b6b6b" stroke-width="1"/><path d="M25 24v5M21 26.5a5.5 5.5 0 1 0 8 0" stroke="#404040" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+    <circle cx="75" cy="30" r="11.5" fill="#d8d8d8" stroke="#6b6b6b" stroke-width="1"/><rect x="72.5" y="23.5" width="5" height="8" rx="2.5" fill="none" stroke="#404040" stroke-width="1.4"/><path d="M70.5 29.5a4.5 4.5 0 0 0 9 0M75 34v2" stroke="#404040" stroke-width="1.4" fill="none"/>
+    <circle cx="50" cy="93" r="41" fill="url(#darkkey)"/>
+    ${key("up", 50, 62.75, 20, "transparent")}${key("down", 50, 123.25, 20, "transparent")}${key("left", 19.75, 93, 20, "transparent")}${key("right", 80.25, 93, 20, "transparent")}
+    ${key("confirm", 50, 93, 43, "#2b2b2b")}
+    <rect x="55" y="138" width="32" height="70" rx="16" fill="url(#darkkey)"/>
+    ${key("back", 29, 154, 32, "url(#darkkey)", P.lf)}${key("home", 29, 192, 32, "url(#darkkey)", P.house)}${key("menu", 29, 230, 32, "url(#darkkey)", P.lines)}
+    ${key("volp", 71, 154, 32, "transparent", P.plus)}${key("volm", 71, 192, 32, "transparent", '<path d="M5 12h14"/>')}${key("tv", 71, 230, 32, "url(#darkkey)", P.tv)}
+    <rect x="46" y="258" width="8" height="8" rx="1.5" fill="#737373"/><text x="50" y="264.5" font-size="6" font-weight="800" fill="#eee" text-anchor="middle" font-family="-apple-system, sans-serif">N</text>
+  </svg>`;
+}
+const paneKeyMapping = () => {
+  const keys = [["up", "上", "PageUp"], ["dn", "下", "PageDown"], ["lf", "左", "—"], ["rt", "右", "—"], ["check", "确认", "↩"], ["uturn", "返回", "⎋"], ["volp", "音量+", "—"], ["volm", "音量-", "—"], ["house", "主页", "—"], ["lines", "菜单", "动作：改写模式选单"]];
+  return `
+  <div class="phead">点按遥控器上的按键进行配置，改动即时保存并生效。</div>
+  <div class="scope"><span class="lbl">编辑对象：</span><span class="sel-m" style="min-width:230px">默认（所有应用）</span><span class="sp"></span>${ic("plus")}${ic("dots")}${btn("套用预设…")}</div>
+  <div class="banner brand">${ic("uturn")}<span>已套用「编程助手」 · 作用范围：默认（所有应用）</span>${btn("撤销")}</div>
+  <div class="km">${remoteSvg("confirm")}
+    <div style="display:grid;gap:14px;min-width:0">
+      ${grp("选中按键", [
+        `<div class="row"><span class="kbadge">OK</span><div class="rt"><b style="font-size:14px">确认键</b><small>HID usage 0x28</small></div></div>`,
+        row({ i: "keyboard", t: "快捷键", s: "↩", tr: `<span class="rec-btn live">按下快捷键…（Esc 取消）</span>${btn("清除")}${btn("设为动作…")}` }),
+      ], "录音 / 转写进行中，返回键优先用于取消，不触发映射。未映射的键保持系统原生行为。")}
+      ${grp("全部按键", keys.map(([i, n, b]) => row({ i, t: n, cls: n === "确认" ? "sel" : "", tr: `<span class="stat dim">${b}</span><span class="chev">${ic("rt")}</span>` })))}
+    </div></div>`;
+};
+const paneKeyMappingApp = () => `
+  <div class="phead">点按遥控器上的按键进行配置，改动即时保存并生效。</div>
+  <div class="scope"><span class="lbl">编辑对象：</span><span class="sel-m" style="min-width:230px">▣ Cursor（覆盖 2 键）</span><span class="sp"></span>${ic("plus")}${ic("dots")}${btn("套用预设…")}</div>
+  <div class="banner">${warnTri}<span>按键接管未生效，映射暂不起作用</span>${btn("去处理")}</div>
+  <div class="km">${remoteSvg("back")}
+    <div style="display:grid;gap:14px;min-width:0">
+      ${grp("选中按键", [
+        `<div class="row"><span class="kbadge">&lt;</span><div class="rt"><b style="font-size:14px">返回键</b><small>HID usage 0x29</small></div></div>`,
+        row({ i: "pencil", t: "已覆盖", s: "默认为 ⎋", tr: btn("恢复继承") }),
+        row({ i: "keyboard", t: "快捷键", s: "⌘Z", tr: `<span class="rec-btn">⌘Z</span>${btn("清除")}${btn("设为动作…")}` }),
+      ])}
+      ${grp("全部按键", [["up", "上", "继承", "PageUp"], ["dn", "下", "继承", "PageDown"], ["check", "确认", "覆盖", "⌘↩"], ["uturn", "返回", "覆盖", "⌘Z"], ["lines", "菜单", "继承", "动作：改写模式选单"]].map(([i, n, src, b]) =>
+        row({ i, t: n, cls: n === "返回" ? "sel" : "", tr: `<span class="capsule ${src === "继承" ? "gray" : ""}">${src}</span><span class="stat dim">${b}</span><span class="chev">${ic("rt")}</span>` })), "「继承」跟随默认映射，「覆盖」是该应用自己的绑定；清除覆盖即回到继承。")}
+    </div></div>`;
+
+const paneRemote = () => `
+  <div class="phead">连接状态、按键接管，以及写入文字所需的两项系统权限。</div>
+  ${grp("连接", [
+    row({ ic2: `<svg viewBox="0 0 100 100" width="16" height="16" fill="currentColor" class="ok-i">${glyphBars}</svg>`, t: "连接状态", s: "已连接" }),
+    row({ i: "antenna", t: "系统蓝牙", s: "配对与回连在系统侧完成", tr: btn("打开蓝牙设置…") }),
+  ])}
+  ${grp("按键接管", [
+    row({ i: "hand", t: "接管遥控器按键", s: "需要「输入监控」权限", tr: '<span class="tog on"></span>' }),
+    row({ ic2: okDot, t: "输入监控", s: "已授权" }),
+    row({ ic2: okDot, t: "接管状态", s: "生效中" }),
+  ], "接管后遥控器所有按键由 MiVibe 处置：映射键合成快捷键，未映射的键原样转发，语音键保留按住说话。")}
+  ${grp("链路自检", [
+    row({ ic2: okDot, t: "遥控器已连接" }),
+    row({ ic2: ic("dotted", "dim-i"), t: "按语音键有音频帧", s: "现在按住遥控器语音键说一句话——收到音频即通过。", tr: '<span class="stat dim">待检测</span>' }),
+    row({ ic2: okDot, t: "识别引擎可用" }),
+    row({ ic2: errDot, t: "辅助功能已授权", s: "在下方「权限」组打开隐私与安全性，勾选 MiVibe 后回来。", tr: '<span class="stat warn">未通过</span>' }),
+  ])}`;
+const paneRemoteFail = () => `
+  <div class="phead">连接状态、按键接管，以及写入文字所需的两项系统权限。</div>
+  ${grp("连接", [
+    row({ ic2: `<svg viewBox="0 0 100 100" width="16" height="16" fill="currentColor" class="warn-i"><g fill-opacity=".45"><use href="#glyph"/></g><circle cx="80" cy="80" r="17"/></svg>`, t: "连接状态", s: "未配对" }),
+    row({ i: "antenna", t: "系统蓝牙", s: "配对与回连在系统侧完成", tr: btn("打开蓝牙设置…", "pri") }),
+  ], "未配对时按遥控器说明书进入配对状态，再到系统蓝牙设置中选择「小米蓝牙语音遥控器」。")}
+  ${grp("按键接管", [
+    row({ i: "hand", t: "接管遥控器按键", s: "需要「输入监控」权限", tr: '<span class="tog on"></span>' }),
+    row({ ic2: warnTri, t: "输入监控", s: "未授权", tr: btn("去授权…") }),
+    row({ ic2: warnTri, t: "接管状态", s: "未生效：缺少输入监控授权（0xE00002E2）", tr: btn("重试") + btn("去授权…") }),
+  ], "「输入监控」条目在但开关关着时这里也会显示已授权——请到系统设置把 MiVibe 的开关关掉再打开。")}
+  ${grp("权限", [
+    row({ ic2: warnTri, t: "辅助功能", s: "未授权（写入文字所需）" }),
+    row({ ic2: okDot, t: "事件投递", s: "已授权" }),
+    row({ i: "gear", t: "权限设置", tr: btn("打开隐私与安全性…") }),
+  ], "只需要这两项。不需要屏幕录制、自动化或全局键盘监听。")}`;
+
+function paneAppearance() {
+  const dots = PALETTES.map(p => `<i style="background:${p.a}" class="${p.id === current.id ? "on" : ""}" title="${p.name}"></i>`).join("");
+  const th = (bg, side, lbl, on) => `<figure class="${on ? "on" : ""}"><div class="thumb"><div style="background:${side}"></div><div style="background:${bg};display:grid;align-content:center;padding:6px;gap:4px"><i style="display:block;height:5px;border-radius:3px;background:var(--w-acc);width:60%"></i><i style="display:block;height:5px;border-radius:3px;background:${side};width:80%"></i></div></div>${lbl}</figure>`;
+  return `
+  <div class="phead">选择设置窗口、菜单与浮条的外观和主题色。</div>
+  ${grp("界面外观", [
+    `<div class="apv">${th("linear-gradient(90deg,#fff 50%,#1E2326 50%)", "linear-gradient(90deg,#EDEFF0 50%,#262C30 50%)", "跟随系统", true)}${th("#fff", "#EDEFF0", "浅色")}${th("#1E2326", "#262C30", "深色")}</div>`,
+  ], "跟随系统时，浮条与窗口随 macOS 外观自动切换。")}
+  ${grp("主题色", [
+    row({ i: "palette", t: "主题色", s: `${current.name} · 用于录音、转写、改写状态与选中项`, tr: `<div class="tdots">${dots}</div>` }),
+    row({ i: "sparkles", t: "浮条状态色描边", s: "关闭后浮条只保留中性描边", tr: '<span class="tog on"></span>' }),
+  ], "已输入、需处理、出错的颜色固定，不随主题改变。应用图标始终使用品牌默认色。")}
+  ${grp("预览", [`<div class="row plain" style="justify-content:center;padding:16px;background:linear-gradient(135deg,#E9EDEF 0 60%,#2A3136 60%)"><span class="fbar" style="--c:var(--acc)"><span class="ball"><svg viewBox="0 0 100 100" class="lv" fill="currentColor"><rect x="20" y="36" width="12" height="28" rx="6"/><rect x="44" y="20" width="12" height="60" rx="6"/><rect x="68" y="32" width="12" height="36" rx="6"/></svg></span><b>正在听</b><span>松开语音键结束</span></span></div>`])}`;
+}
+const paneAbout = () => `
+  <div class="about-hero"><svg class="big" viewBox="0 0 100 100"><use href="#appicon"/></svg><div class="wm">MiVibe</div><div class="tg">按住说话，<span>松手成文。</span></div><div class="ver">版本 0.3.0（4）· Apple Silicon</div></div>
+  <div class="steps">
+    <div class="step"><span class="sn">01 · 按住</span><b>按住语音键</b><small>光标放进任意输入框，按住遥控器上的语音键。</small></div>
+    <div class="step"><span class="sn">02 · 说话</span><b>正常说话</b><small>浮条显示正在听；想中途放弃，按返回键。</small></div>
+    <div class="step"><span class="sn">03 · 松手</span><b>文字写入</b><small>松开后自动转写并写入，不会替你按回车。</small></div>
+  </div>
+  ${grp("", [
+    row({ i: "github", t: "项目主页", s: "github.com/taliove/mi-vibe", tr: btn("打开…") }),
+    row({ i: "doc", t: "发布说明", s: "查看本版本的变化与安装说明", tr: btn("打开…") }),
+  ], "通用模式不会自动发送消息。终端场景尚未验证，不在兼容承诺内。")}`;
+
+const editorSheet = () => `<div class="sheet-scrim"><div class="sheet editor">
+  <h6>调整提示词：正式书面</h6>
+  <div class="brow"><span style="width:56px">名称</span><span class="fld" style="flex:1;width:auto;opacity:.6">正式书面</span></div>
+  <div style="font-size:12.5px">处理指令</div>
+  <div class="ta">把口述内容整理成正式的书面语：去掉口头禅和重复，补全标点，保持原意与专有名词不变；不要添加原文没有的信息。</div>
+  <div style="font-size:11px;color:var(--w-fg2)">系统会自动附加「只输出处理后的文本」的约束，这里只需描述想要的处理。</div>
+  <div class="brow">${btn("恢复默认", "danger")}<span class="sp"></span>${btn("取消")}${btn("保存", "pri")}</div>
+</div></div>`;
+const presetSheet = () => `<div class="sheet-scrim"><div class="sheet preset">
+  <h6>套用预设</h6>
+  <div class="pb"><div class="pl"><div>${ic("wand")}编程助手</div></div>
+    <div class="pr"><div class="sum">确认=发送（↩）· 返回=Esc（打断）· 上/下=翻页</div>
+      <div class="pv"><b>确认</b><span style="color:var(--w-fg2)">—</span>${ic("arrowR")}<span>↩</span></div>
+      <div class="pv conf"><b>返回</b><span>⌘Z</span>${ic("arrowR")}<span>⎋</span></div>
+      <div class="pv"><b>上</b><span style="color:var(--w-fg2)">—</span>${ic("arrowR")}<span>PageUp</span></div>
+      <div class="pv"><b>下</b><span style="color:var(--w-fg2)">—</span>${ic("arrowR")}<span>PageDown</span></div>
+    </div></div>
+  <div class="pf brow"><span class="sel-m">仅填空位（推荐）</span><span class="sp"></span>${btn("取消")}${btn("套用", "pri")}</div>
+</div></div>`;
+
+// ───── 菜单弹层 ─────
+function menu({ state }) {
+  const map = {
+    idle: { mb: "on", link: "on", title: "已连接", sub: "小米蓝牙语音遥控器 · 接管生效中" },
+    busy: { mb: "rec", link: "on", title: "已连接", sub: "正在听…", red: true },
+    setup: { mb: "new", link: "new", title: "未配对", sub: "按说明书让遥控器进入配对状态" },
+  }[state];
+  const lk = map.link === "on" ? `<span class="lk" style="background:var(--w-soft);color:var(--w-acc)"><svg viewBox="0 0 100 100" width="18" height="18" fill="currentColor">${glyphBars}</svg></span>`
+    : `<span class="lk" style="background:color-mix(in srgb, var(--warn-c) 16%, transparent);color:var(--warn-c)"><svg viewBox="0 0 100 100" width="18" height="18" fill="currentColor"><g fill-opacity=".45"><use href="#glyph"/></g></svg></span>`;
+  let mid = "";
+  if (state === "busy") mid = `<hr><div class="pend-h">待处理（2/2）</div>
+    <div class="pend"><span class="dot" style="background:var(--w-acc)"></span><div class="tx">正在听</div></div>
+    <div class="pend"><span class="dot" style="background:var(--warn-c)"></span><div class="tx">目标已变，待恢复<small>下午三点的评审改到周四，材料我今晚发群里。</small></div><div class="tr">${btn("输入到这里", "pri")}<span class="trash">${ic("trash")}</span></div></div>`;
+  if (state === "setup") mid = `<hr><div class="guide"><b>${warnTri}首次配对</b><p>1. 遥控器进入配对状态（详见说明书）<br>2. 点击下方「打开蓝牙设置」<br>3. 在列表中选择「小米蓝牙语音遥控器」</p><div>${btn("打开蓝牙设置…", "pri")}</div></div>
+    <hr><div class="guide"><b>${warnTri}需要辅助功能权限</b><p>文字要写进别的应用，必须获得「辅助功能」授权。</p><div>${btn("打开权限设置…")}</div></div>`;
+  return `<div class="nat-menu" style="width:370px">
+    <div class="menubar" style="--mbbg:${ap === "dark" ? "#26282C" : "#ECEEF0"}"><span>周二 14:20</span><span class="mbi open">${MB[map.mb]}${map.red ? '<span class="red"></span>' : ""}</span></div>
+    <div class="popwrap"><div class="pop">
+      <div class="hd">${lk}<div><b>${map.title}</b><span class="sub">${map.sub}</span></div></div>
+      <div class="kv"><span>识别引擎</span><span>本地识别（离线）</span></div>
+      <div class="kv"><span>改写模式</span><span>转录整理</span></div>
+      ${mid}
+      <hr><div class="foot"><span>设置…<kbd>⌘,</kbd></span><span>退出<kbd>⌘Q</kbd></span></div>
+    </div></div></div>`;
+}
+
+// ───── 浮条 ─────
+const BALL = {
+  listen: `<svg viewBox="0 0 100 100" class="lv" fill="currentColor"><rect x="20" y="36" width="12" height="28" rx="6"/><rect x="44" y="20" width="12" height="60" rx="6"/><rect x="68" y="32" width="12" height="36" rx="6"/></svg>`,
+  trans: `<svg viewBox="0 0 24 24" class="spin" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 3a9 9 0 1 0 9 9"/></svg>`,
+  polish: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5l1.9 5.6 5.6 1.9-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.9z"/><circle cx="18.5" cy="18.5" r="2"/></svg>`,
+  ok: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`,
+  note: `<svg viewBox="0 0 24 24" fill="currentColor"><rect x="10.6" y="10" width="2.8" height="8" rx="1.4"/><circle cx="12" cy="6.6" r="1.7"/></svg>`,
+  warn: `<svg viewBox="0 0 24 24" fill="currentColor"><rect x="10.6" y="5" width="2.8" height="9.5" rx="1.4"/><circle cx="12" cy="18" r="1.7"/></svg>`,
+};
+const fb = (k, cls, t, s) => `<div class="fbar ${cls}"><div class="ball">${BALL[k]}</div><b>${t}</b>${s ? `<span>${s}</span>` : ""}</div>`;
+const floatsHtml = () => `
+  <div class="scene"><div class="scene-h"><h3>进行中</h3><span class="n">主题色</span></div>
+    <div class="stage ${ap === "dark" ? "d" : "l"}">${fb("listen", "", "正在听", "松开语音键结束")}${fb("trans", "trans", "正在转写", "可以说下一句")}${fb("polish", "polish", "正在改写", "正在让语言模型整理文字")}</div></div>
+  <div class="scene"><div class="scene-h"><h3>结果</h3><span class="n">语义色 · 固定</span></div>
+    <div class="stage ${ap === "dark" ? "d" : "l"}">${fb("ok", "ok", "已输入", "文字已写入目标输入框")}${fb("note", "note", "没有听到内容", "已忽略")}${fb("warn", "warn", "需处理", "焦点已改变，请选好输入框后点「输入到这里」")}</div></div>
+  <div class="scene"><div class="scene-h"><h3>其他提示</h3><span class="n">提示态的真实文案</span></div>
+    <div class="stage ${ap === "dark" ? "d" : "l"}">${fb("note", "note", "遥控器断开", "录音已中断")}${fb("warn", "warn", "转写失败", "转写超时（45 秒），可在菜单里重试")}${fb("note", "note", "还有待处理的内容", "请在菜单里处理")}</div></div>
+  <div class="scene"><div class="scene-h"><h3>模式选单</h3><span class="n">菜单键呼出 · 遥控器操作</span></div>
+    <div class="stage ${ap === "dark" ? "d" : "l"}"><div class="picker">${["原文直出", "转录整理", "正式书面", "简洁", "翻译为英文", "Vibe Coding"].map((m, i) => `<div class="it ${i === 1 ? "on" : ""}"><span class="o"></span>${m}</div>`).join("")}<div class="ft">↑↓ 选择 · 确认键切换 · 返回键关闭</div></div></div></div>`;
+
+// ───── 分发 ─────
+const distHtml = () => `
+  <div class="scene"><div class="scene-h"><h3>DMG 安装窗口</h3><span class="n">620 × 360</span></div>
+    <div class="fit"><div class="nat"><div class="dmg"><div class="tb"><span class="lights" style="padding:0"><i></i><i></i><i></i></span><span class="t">MiVibe 0.3.0</span></div>
+      <div class="bgv" style="background: radial-gradient(90% 120% at 50% 110%, var(--w-soft), transparent 60%), var(--w-bg)">
+        <svg viewBox="0 0 620 330" style="position:absolute;inset:0;width:100%;height:100%" aria-hidden="true"><g style="fill:var(--w-acc)" opacity=".08"><rect x="40" y="200" width="22" height="120" rx="11"/><rect x="74" y="160" width="22" height="160" rx="11"/><rect x="108" y="230" width="22" height="90" rx="11"/><rect x="490" y="180" width="22" height="140" rx="11"/><rect x="524" y="220" width="22" height="100" rx="11"/><rect x="558" y="150" width="22" height="170" rx="11"/></g></svg>
+        <figure><svg viewBox="0 0 100 100" width="112" height="112"><use href="#appicon"/></svg>MiVibe</figure>
+        <svg class="arrow" width="120" height="30" viewBox="0 0 120 30" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15h104M96 5l12 10-12 10" stroke-dasharray="0.1 9"/></svg>
+        <figure><svg viewBox="0 0 100 100" width="112" height="112"><path d="M8 22a8 8 0 0 1 8-8h22l8 9h38a8 8 0 0 1 8 8v47a8 8 0 0 1-8 8H16a8 8 0 0 1-8-8z" fill="#5AA9E6"/><path d="M8 34h84v44a8 8 0 0 1-8 8H16a8 8 0 0 1-8-8z" fill="#7DC0F2"/><path d="M40 70l10-26 10 26M44 61h12" stroke="#fff" stroke-width="4" fill="none" stroke-linecap="round"/></svg>应用程序</figure>
+        <div class="hint">把 MiVibe 拖到「应用程序」· 首次打开被拦截时，到「隐私与安全性」点「仍要打开」</div>
+      </div></div></div></div></div>
+  <div class="scene"><div class="scene-h"><h3>GitHub 仓库首页</h3><span class="n">README.md · 中文</span></div>
+    <div class="fit"><div class="nat"><div class="gh"><div class="gtb">taliove / mi-vibe<div class="tabs"><span class="on">README</span><span>发布</span></div></div>
+      <div class="gbody">
+        <svg viewBox="0 0 620 170" width="620" role="img" aria-label="README 主图"><g transform="translate(30 35)"><use href="#appicon" width="100" height="100"/></g>
+          <g style="fill:var(--w-acc)"><rect x="156" y="77" width="6" height="16" rx="3" opacity=".35"/><rect x="170" y="65" width="6" height="40" rx="3" opacity=".5"/><rect x="184" y="55" width="6" height="60" rx="3" opacity=".7"/><rect x="198" y="69" width="6" height="32" rx="3" opacity=".85"/><rect x="212" y="61" width="6" height="48" rx="3"/></g>
+          <rect x="240" y="51" width="350" height="68" rx="14" style="fill:var(--w-card);stroke:var(--w-cardline)" stroke-width="1.5"/>
+          <text x="264" y="93" font-family="-apple-system, PingFang SC, sans-serif" font-size="22" style="fill:var(--w-fg)">按住说话，松手成文。</text><rect x="476" y="69" width="3" height="32" rx="1.5" style="fill:var(--w-acc)"/></svg>
+        <h4>MiVibe</h4>
+        <div>让小米蓝牙语音遥控器成为 Mac 的语音输入与操作入口。</div>
+        <div class="badges"><span class="badge"><b>macOS</b><em>native</em></span><span class="badge"><b>Swift</b><em>6.0</em></span><span class="badge"><b>ASR</b><em>cloud + local</em></span><span class="badge"><b>release</b><em>v0.3.0</em></span></div>
+        <div class="lang"><b>中文</b> · <a href="#dist">English</a> · <a href="#dist">下载安装</a> · <a href="#dist">从源码构建</a></div>
+      </div></div></div></div></div>
+  <div class="scene"><div class="scene-h"><h3>发布页</h3><span class="n">CI 自动生成的说明开头</span></div>
+    <div class="fit"><div class="nat"><div class="rel">
+      <h4>MiVibe v0.3.0 <span class="latest">Latest</span></h4>
+      <div class="assets">
+        <div>${ic("box")}<b>MiVibe-0.3.0-arm64.dmg</b><span class="capsule">推荐</span><span class="sz">2.4 MB</span></div>
+        <div>${ic("doc")}<span>MiVibe-0.3.0-arm64.zip</span><span class="sz">2.3 MB</span></div>
+      </div>
+      <h5>安装</h5>
+      <ol><li>打开 DMG，把 MiVibe 拖进「应用程序」。</li><li>首次打开提示"无法验证开发者"时，到「系统设置 → 隐私与安全性」点「仍要打开」，或执行：</li></ol>
+      <pre>xattr -dr com.apple.quarantine /Applications/MiVibe.app</pre>
+      <ol start="3"><li>在「系统设置 → 蓝牙」配对遥控器，按应用内提示授予权限。</li><li>光标放进输入框，按住语音键说话，松手写入。</li></ol>
+    </div></div></div></div>
+  <div class="scene"><div class="scene-h"><h3>社交预览图</h3><span class="n">1280 × 640 · 仓库设置里上传</span></div>
+    <div style="border-radius:12px;overflow:hidden;aspect-ratio:2/1;max-width:640px">
+      <svg viewBox="0 0 1280 640" style="width:100%;height:100%;display:block" role="img" aria-label="社交预览图"><rect width="1280" height="640" fill="#0E1A1F"/>
+        <g style="fill:var(--a-dark)" opacity=".13"><rect x="760" y="120" width="44" height="400" rx="22"/><rect x="840" y="40" width="44" height="560" rx="22"/><rect x="920" y="160" width="44" height="320" rx="22"/><rect x="1000" y="90" width="44" height="460" rx="22"/><rect x="1080" y="200" width="44" height="240" rx="22"/></g>
+        <g transform="translate(96 140) scale(1.6)"><use href="#appicon" width="100" height="100"/></g>
+        <text x="96" y="420" font-family="Bricolage Grotesque, -apple-system, sans-serif" font-weight="700" font-size="96" fill="#E4EDEE">MiVibe</text>
+        <text x="96" y="492" font-family="-apple-system, PingFang SC, sans-serif" font-size="40" fill="#E4EDEE">按住说话，<tspan style="fill:var(--a-dark)">松手成文。</tspan></text>
+        <text x="96" y="548" font-family="-apple-system, sans-serif" font-size="26" fill="#93A5A9">Voice input for macOS with a Bluetooth voice remote</text></svg>
+    </div></div>`;
+
+// ───── 场景组装 ─────
+const SCENES = [
+  { t: "识别 · 本地", n: "模型下载中、推荐、失败、使用中四种行状态", w: () => win({ pane: "识别", link: "on", content: paneRecognitionLocal(), cls: "tall" }),
+    notes: ["<b>分段控件</b>和<b>使用中</b>的对勾改用主题色；<b>推荐</b>标签用主题色浅底。", "下载失败用琥珀三角加出错红文字，和进度条的主题色区分。"] },
+  { t: "识别 · 豆包", n: "云端引擎", w: () => win({ pane: "识别", link: "on", content: paneRecognitionDoubao() }),
+    notes: ["保存成功的提示用成功绿；保存按钮是主要按钮，用主题色填充。"] },
+  { t: "改写", n: "模式列表 + 服务商", w: () => win({ pane: "改写", link: "on", content: paneRewrite(), cls: "tall" }),
+    notes: ["单选圆点用主题色；「已调整」用琥珀标签，「自定义」用灰标签。"] },
+  { t: "改写 · 调整提示词", n: "弹出窗口", w: () => win({ pane: "改写", link: "on", content: paneRewrite(), overlay: editorSheet() }),
+    notes: ["保存用主题色主按钮；恢复默认用红色文字按钮，放在左侧。"] },
+  { t: "按键映射 · 默认", n: "选中确认键，正在录制快捷键", w: () => win({ pane: "按键映射", link: "on", content: paneKeyMapping(), cls: "tall" }),
+    notes: ["遥控器机身保持铝色，因为它画的是实物；选中键、已绑定键的描边用主题色。", "套用预设后的撤销横幅用主题色浅底，和琥珀色的警告横幅区分。", "正在录制时，录制按钮变成主题色填充。"] },
+  { t: "按键映射 · 应用覆盖", n: "Cursor 覆盖了两个键，接管未生效", w: () => win({ pane: "按键映射", link: "off", content: paneKeyMappingApp(), cls: "tall" }),
+    notes: ["「覆盖」标签用主题色，「继承」用灰色；接管未生效的横幅用琥珀浅底。"] },
+  { t: "按键映射 · 套用预设", n: "弹出窗口，含冲突行", w: () => win({ pane: "按键映射", link: "on", content: paneKeyMapping(), overlay: presetSheet() }),
+    notes: ["冲突行用琥珀浅底，替代现在的黄色。"] },
+  { t: "遥控器 · 正常", n: "已连接、接管生效、一项自检未通过", w: () => win({ pane: "遥控器", link: "on", content: paneRemote(), cls: "tall" }),
+    notes: ["连接状态的图标换成标志字形，已连接时用成功绿。", "自检结果用固定语义色：通过绿、失败红、待检测灰。"] },
+  { t: "遥控器 · 首次使用", n: "未配对、缺权限", w: () => win({ pane: "遥控器", link: "new", content: paneRemoteFail(), cls: "tall" }),
+    notes: ["未配对时「打开蓝牙设置」升为主题色主按钮，引导第一步。"] },
+  { t: "外观", n: "新页面", w: () => win({ pane: "外观", link: "on", content: paneAppearance(), cls: "tall" }),
+    notes: ["界面外观用三张缩略图选择；主题色用色点选择，选中后整窗即时换色。", "预览区放一条正在听的浮条，改动所见即所得。"] },
+  { t: "关于", n: "重新设计", w: () => win({ pane: "关于", link: "on", content: paneAbout() }),
+    notes: ["把现在大片空白的页面换成品牌头图和三步用法；版本号仍从 bundle 读取。"] },
+];
+
+// ───── 状态与渲染 ─────
+let current = PALETTES[0];
+let ap = "light";
+const live = document.getElementById("live");
+const root = document.documentElement;
+const pageDark = () => root.dataset.theme === "dark" || (root.dataset.theme !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
+
+function setVars() {
+  const d = pageDark();
+  const s = document.body.style;
+  s.setProperty("--a", d ? current.dark : current.a);
+  s.setProperty("--a-strong", d ? current.dark : current.strong);
+  s.setProperty("--a-soft", d ? current.softDark : current.soft);
+  s.setProperty("--a-top", current.top);
+  s.setProperty("--a-bot", current.bot);
+  s.setProperty("--a-dark", current.dark);
+  s.setProperty("--acc", current.a);
+  s.setProperty("--acc-d", current.dark);
+}
+const mk = html => `<div class="mk ${ap}">${html}</div>`;
+
+function renderStatic() {
+  document.getElementById("mbline").innerHTML = [["on", "已连接"], ["rec", "正在听（声波跳动）"], ["off", "已配对 · 未连接"], ["new", "未配对"]]
+    .map(([k, l]) => `<div style="--mbbg: var(--bg)">${MB[k]}${l}</div>`).join("");
+  const pal = document.getElementById("pal");
+  pal.innerHTML = PALETTES.map(p => `<button type="button" class="pc" data-pal="${p.id}" aria-pressed="false">
+    <span class="top"><svg viewBox="0 0 100 100"><defs><linearGradient id="gp-${p.id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${p.top}"/><stop offset="1" stop-color="${p.bot}"/></linearGradient></defs><rect width="100" height="100" rx="22.5" fill="url(#gp-${p.id})"/><use href="#glyph" fill="#fff"/></svg>
+    <span><b>${p.name}</b> ${p.rec ? '<span class="rec">推荐</span>' : ""}<span class="hex">${p.a} / ${p.dark}</span></span></span>
+    <span class="bar"><i style="background:${p.a}"></i><i style="background:${p.dark}"></i><i style="background:${p.soft}"></i><i style="background:#1D9A57"></i><i style="background:#C27400"></i><i style="background:#D93A2B"></i></span>
+    <small>${p.note}</small></button>`).join("");
+  document.getElementById("chips").innerHTML = PALETTES.map(p => `<button type="button" class="chip" data-pal="${p.id}" aria-pressed="false"><i style="background:linear-gradient(${p.top},${p.bot})"></i>${p.name}</button>`).join("");
+  document.querySelectorAll("[data-pal]").forEach(b => b.addEventListener("click", () => { current = PALETTES.find(p => p.id === b.dataset.pal); save(); render(); }));
+  document.querySelectorAll("[data-ap]").forEach(b => b.addEventListener("click", () => { ap = b.dataset.ap; save(); render(); }));
+}
+function renderTokens() {
+  const rows = [
+    ["accent", "主题色：进行中状态、选中项、开关、主要按钮", current.a, current.dark],
+    ["accent-strong", "浅底上的主题色文字与链接", current.strong, current.dark],
+    ["accent-soft", "主题色浅底：推荐标签、选中行、品牌横幅", current.soft, current.softDark],
+    ["success", "已输入、已授权、自检通过", "#1D9A57", "#3CC97D"],
+    ["attention", "需处理、警告横幅、未授权", "#C27400", "#F0A43A"],
+    ["error", "出错、下载失败、自检失败、删除", "#D93A2B", "#FF6B5C"],
+    ["notice", "提示、已忽略、中断", "#6B7A7E", "#7F9297"],
+  ];
+  document.getElementById("tokrows").innerHTML = rows.map(([k, u, l, d]) =>
+    `<tr><td><code>${k}</code></td><td>${u}</td><td><span class="sw" style="background:${l}"></span><code>${l}</code></td><td><span class="sw" style="background:${d}"></span><code>${d}</code></td></tr>`).join("");
+}
+function render() {
+  setVars();
+  document.querySelectorAll("[data-pal]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.pal === current.id)));
+  document.querySelectorAll("[data-ap]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.ap === ap)));
+  renderTokens();
+  document.getElementById("menus").innerHTML = [["空闲", "idle", "已连接、无待处理"], ["录音中", "busy", "正在听 + 一条目标已变的待处理"], ["首次使用", "setup", "未配对、缺辅助功能权限"]]
+    .map(([t, k, n]) => `<div class="scene"><div class="scene-h"><h3>${t}</h3><span class="n">${n}</span></div><div class="fit"><div class="nat">${mk(menu({ state: k }))}</div></div></div>`).join("");
+  document.getElementById("floats").innerHTML = mk(`<div style="display:grid;gap:18px">${floatsHtml()}</div>`);
+  document.getElementById("wins").innerHTML = SCENES.map((s, i) => `<div class="scene">
+      <div class="scene-h"><span class="n">3.${i + 1}</span><h3>${s.t}</h3><span class="n">${s.n}</span></div>
+      <div class="fit"><div class="nat" style="padding:10px 10px 30px">${mk(s.w())}</div></div>
+      <ul class="notes">${s.notes.map(x => `<li>${x}</li>`).join("")}</ul></div>`).join("");
+  document.getElementById("dists").innerHTML = mk(distHtml());
+  fitAll();
+}
+function fitAll() {
+  document.querySelectorAll(".fit").forEach(f => {
+    const n = f.firstElementChild;
+    n.style.transform = "none";
+    n.style.marginLeft = "0";
+    n.style.width = "max-content";
+    const w = n.scrollWidth, h = n.scrollHeight;
+    const s = Math.min(1, f.clientWidth / w);
+    n.style.transform = `scale(${s})`;
+    n.style.marginLeft = s === 1 ? `${Math.floor((f.clientWidth - w) / 2)}px` : "0";
+    f.style.height = `${Math.ceil(h * s)}px`;
+  });
+}
+function save() { try { localStorage.setItem("mivibe-ds", JSON.stringify({ p: current.id, ap })); } catch (e) {} }
+try { const v = JSON.parse(localStorage.getItem("mivibe-ds") || "{}"); current = PALETTES.find(p => p.id === v.p) || current; ap = v.ap === "dark" ? "dark" : "light"; } catch (e) {}
+renderStatic();
+render();
+addEventListener("resize", fitAll);
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", render);
+if (document.fonts) document.fonts.ready.then(fitAll);
+</script>

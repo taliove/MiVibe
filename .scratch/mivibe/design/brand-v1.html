@@ -1,0 +1,417 @@
+<title>MiVibe 品牌设计稿</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* 版式：单栏品牌手册，窄正文 + 宽展示板；展示板本身用提案里的品牌色绘制 */
+:root {
+  --tide: #0C98A8;        /* 品牌主色 · 潮汐青：所有"进行中"的语音阶段 */
+  --tide-strong: #08717F; /* 浅底上的文字 / 描边 */
+  --tide-soft: #D7F1F2;
+  --ink: #0E1A1F;         /* 品牌墨色：图标暗部、深色展示 */
+  --bg: #F3F6F6;
+  --surface: #FFFFFF;
+  --fg: #13201F;
+  --muted: #5A6A6E;
+  --line: #D8E1E2;
+  --ok: #1D9A57;
+  --warn: #C27400;
+  --note: #6B7A7E;
+  --glass: rgba(255,255,255,.78);
+  --shadow: 0 10px 28px rgba(14,26,31,.12), 0 1px 3px rgba(14,26,31,.08);
+  --f-display: "Bricolage Grotesque", "PingFang SC", "Hiragino Sans GB", system-ui, sans-serif;
+  --f-body: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --tide: #22B8C6; --tide-strong: #5FD3DC; --tide-soft: #0F3439;
+  --bg: #0B1316; --surface: #111C20; --fg: #E4EDEE; --muted: #93A5A9; --line: #22343A;
+  --ok: #3CC97D; --warn: #F0A43A; --note: #93A5A9; --glass: rgba(24,36,40,.78);
+  --shadow: 0 10px 28px rgba(0,0,0,.45), 0 1px 3px rgba(0,0,0,.4);
+  color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --tide: #22B8C6; --tide-strong: #5FD3DC; --tide-soft: #0F3439;
+  --bg: #0B1316; --surface: #111C20; --fg: #E4EDEE; --muted: #93A5A9; --line: #22343A;
+  --ok: #3CC97D; --warn: #F0A43A; --note: #93A5A9; --glass: rgba(24,36,40,.78);
+  --shadow: 0 10px 28px rgba(0,0,0,.45), 0 1px 3px rgba(0,0,0,.4);
+  color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font: 15px/1.7 var(--f-body); }
+.wrap { max-width: 1040px; margin: 0 auto; padding-inline: 20px; padding-block: 40px 80px; display: grid; gap: 64px; }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; margin: 0; line-height: 1.2; }
+h2 { font-size: 1.7rem; font-weight: 700; }
+h3 { font-size: 1.05rem; font-weight: 700; }
+p { margin: 0; max-width: 66ch; }
+.eyebrow { font: 500 .72rem/1 var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--tide-strong); }
+section { display: grid; gap: 22px; }
+.lead { color: var(--muted); }
+.board { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 28px; display: grid; gap: 24px; min-width: 0; }
+.grid { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.cap { font-size: .82rem; color: var(--muted); }
+code, .mono { font-family: var(--f-mono); font-size: .82em; }
+ul.plain { margin: 0; padding-left: 1.1em; display: grid; gap: 6px; max-width: 70ch; }
+
+/* 封面 */
+.hero { display: grid; grid-template-columns: auto 1fr; gap: 36px; align-items: center; }
+.hero .icon { width: 168px; }
+.hero h1 { font-size: clamp(2.4rem, 6vw, 3.6rem); font-weight: 700; letter-spacing: -.02em; }
+.hero .tag { font-size: 1.35rem; font-weight: 600; margin-top: 6px; }
+.hero .tag span { color: var(--tide-strong); }
+.hero p { margin-top: 14px; color: var(--muted); }
+@media (max-width: 620px) { .hero { grid-template-columns: 1fr; } .hero .icon { width: 120px; } }
+
+/* 现状 */
+.issues { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+.issue { border-top: 2px solid var(--line); padding-top: 12px; display: grid; gap: 4px; }
+.issue b { font-weight: 600; }
+.issue span { color: var(--muted); font-size: .9rem; }
+
+/* 图标 */
+.icons-row { display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-end; }
+.icons-row figure { margin: 0; display: grid; gap: 8px; justify-items: center; }
+.icons-row figcaption { font: .75rem var(--f-mono); color: var(--muted); }
+.dock { border-radius: 14px; padding: 18px 22px; display: flex; gap: 16px; align-items: flex-end; }
+.dock.light { background: #E9ECEF; }
+.dock.dark { background: #1C1F24; }
+.dock svg { width: 56px; height: 56px; }
+.construct { width: 100%; max-width: 280px; }
+
+/* 菜单栏 */
+.menubar { display: flex; align-items: center; justify-content: flex-end; gap: 18px; height: 30px; padding-inline: 14px; border-radius: 8px; font: 13px var(--f-body); }
+.menubar.light { background: #ECEEF0; color: #1b1b1b; }
+.menubar.dark { background: #26282C; color: #f2f2f2; }
+.menubar svg { width: 18px; height: 18px; }
+.mb-states { display: grid; gap: 10px; }
+.mb-legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.mb-legend div { display: flex; gap: 10px; align-items: center; font-size: .88rem; }
+.mb-legend svg { width: 22px; height: 22px; color: var(--fg); flex: none; }
+
+/* 色彩 */
+.swatches { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.sw { border-radius: 12px; overflow: hidden; border: 1px solid var(--line); background: var(--surface); }
+.sw .chip { height: 72px; }
+.sw .meta { padding: 10px 12px; display: grid; gap: 2px; font-size: .82rem; }
+.sw .meta b { font-size: .9rem; }
+.sw .meta .mono { color: var(--muted); }
+.principle { display: grid; gap: 16px; grid-template-columns: 1fr 1fr; }
+@media (max-width: 620px) { .principle { grid-template-columns: 1fr; } }
+.principle > div { border-radius: 14px; padding: 18px; display: grid; gap: 6px; }
+.principle .p1 { background: var(--tide-soft); }
+.principle .p2 { background: var(--bg); border: 1px solid var(--line); }
+.dots { display: flex; gap: 8px; margin-top: 4px; }
+.dots i { width: 18px; height: 18px; border-radius: 50%; display: block; }
+
+/* 方向候选 */
+.options { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+.opt { border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: grid; gap: 10px; background: var(--surface); }
+.opt.rec { border-color: var(--tide); box-shadow: 0 0 0 1px var(--tide); }
+.opt .row { display: flex; gap: 12px; align-items: center; }
+.opt svg { width: 52px; height: 52px; flex: none; }
+.pill { font: 500 .7rem/1 var(--f-mono); padding: 4px 8px; border-radius: 99px; background: var(--tide-soft); color: var(--tide-strong); letter-spacing: .04em; }
+.opt p { font-size: .88rem; color: var(--muted); }
+
+/* 浮条 */
+.stage { border-radius: 14px; padding: 26px 18px; display: grid; gap: 14px; justify-items: center; }
+.stage.l { background: linear-gradient(135deg, #F7F7F5 0%, #E3E8EA 55%, #2A3136 55.2%, #1E2428 100%); }
+.stage.d { background: linear-gradient(135deg, #1B2024 0%, #111518 55%, #EEF1F2 55.2%, #FFFFFF 100%); }
+.fbar { --c: var(--tide); display: inline-flex; align-items: center; gap: 10px; height: 44px; padding: 0 16px 0 6px; border-radius: 22px; max-width: 100%;
+  background: rgba(255,255,255,.80); color: #13201F; backdrop-filter: blur(20px) saturate(1.6); -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  border: 1px solid color-mix(in srgb, var(--c) 55%, transparent); box-shadow: 0 8px 24px rgba(0,0,0,.18), inset 0 0 0 .5px rgba(255,255,255,.6); }
+.stage.d .fbar { background: rgba(30,40,44,.78); color: #E7EEEF; box-shadow: 0 8px 24px rgba(0,0,0,.5), inset 0 0 0 .5px rgba(255,255,255,.08); }
+.fbar .ball { width: 32px; height: 32px; border-radius: 50%; background: var(--c); display: grid; place-items: center; flex: none; color: #fff; }
+.fbar .ball svg { width: 18px; height: 18px; }
+.fbar b { font-weight: 600; font-size: 13.5px; white-space: nowrap; }
+.fbar span { font-size: 12.5px; opacity: .62; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.s-listen { --c: #0C98A8; } .s-trans { --c: #0C98A8; } .s-polish { --c: #0C98A8; }
+.s-ok { --c: #1D9A57; } .s-note { --c: #6B7A7E; } .s-warn { --c: #C27400; }
+.stage.d .s-listen, .stage.d .s-trans, .stage.d .s-polish { --c: #22B8C6; }
+.stage.d .s-ok { --c: #3CC97D; } .stage.d .s-warn { --c: #F0A43A; } .stage.d .s-note { --c: #7F9297; }
+.s-trans .ball { background: color-mix(in srgb, var(--c) 18%, transparent); color: var(--c); }
+.s-polish .ball { background: linear-gradient(135deg, var(--c), color-mix(in srgb, var(--c) 55%, #fff)); }
+.lv rect { animation: lv 1s ease-in-out infinite; transform-origin: center; transform-box: fill-box; }
+.lv rect:nth-child(2) { animation-delay: -.3s; } .lv rect:nth-child(3) { animation-delay: -.6s; }
+@keyframes lv { 50% { transform: scaleY(.45); } }
+.spin { animation: spin 1.1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.tw { animation: tw 1.6s ease-in-out infinite; transform-origin: center; transform-box: fill-box; }
+@keyframes tw { 50% { transform: scale(.8) rotate(20deg); opacity: .75; } }
+@media (prefers-reduced-motion: reduce) { .lv rect, .spin, .tw { animation: none; } }
+
+.statetable { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; min-width: 640px; font-size: .88rem; }
+th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font: 500 .72rem var(--f-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+td .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+
+/* README */
+.readme { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--surface); }
+.readme .chrome { height: 34px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 6px; padding-inline: 12px; font: .75rem var(--f-mono); color: var(--muted); }
+.readme .chrome i { width: 10px; height: 10px; border-radius: 50%; background: var(--line); display: block; }
+.readme .body { padding: 28px 18px 30px; display: grid; justify-items: center; gap: 10px; text-align: center; }
+.readme .hero-art { width: 100%; max-width: 620px; }
+.readme h3 { font-size: 1.9rem; }
+.badges { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+.badge { display: inline-flex; font: 600 11px/1 var(--f-body); border-radius: 4px; overflow: hidden; }
+.badge b { background: #2B3A3F; color: #fff; padding: 5px 7px; font-weight: 600; }
+.badge em { background: var(--tide); color: #fff; padding: 5px 7px; font-style: normal; }
+.social { width: 100%; max-width: 640px; aspect-ratio: 2 / 1; border-radius: 12px; overflow: hidden; }
+.social svg { width: 100%; height: 100%; display: block; }
+
+/* 清单 */
+.todo { display: grid; gap: 0; }
+.todo div { display: grid; grid-template-columns: minmax(0, 14rem) minmax(0, 1fr); gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.todo div > :first-child { font-family: var(--f-mono); font-size: .8rem; color: var(--tide-strong); word-break: break-all; }
+@media (max-width: 620px) { .todo div { grid-template-columns: 1fr; gap: 4px; } }
+.ask { background: var(--tide-soft); border-radius: 16px; padding: 22px; display: grid; gap: 12px; }
+.ask ol { margin: 0; padding-left: 1.3em; display: grid; gap: 8px; max-width: 72ch; }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="g-tide" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#16B4C2"/><stop offset="1" stop-color="#086978"/>
+    </linearGradient>
+    <linearGradient id="g-tide-dark" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#16252B"/><stop offset="1" stop-color="#0A1215"/>
+    </linearGradient>
+    <linearGradient id="g-indigo" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5A6BF0"/><stop offset="1" stop-color="#3B3FB8"/>
+    </linearGradient>
+    <linearGradient id="g-coral" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FF7157"/><stop offset="1" stop-color="#D23A2A"/>
+    </linearGradient>
+    <!-- 标志字形：三根声波 + 文本光标。100×100 网格 -->
+    <g id="glyph">
+      <rect x="17" y="40" width="9" height="20" rx="4.5"/>
+      <rect x="31" y="28" width="9" height="44" rx="4.5"/>
+      <rect x="45" y="36" width="9" height="28" rx="4.5"/>
+      <rect x="66" y="21" width="8" height="58" rx="4"/>
+      <rect x="59" y="18" width="22" height="7" rx="3.5"/>
+      <rect x="59" y="75" width="22" height="7" rx="3.5"/>
+    </g>
+  </defs>
+</svg>
+
+<div class="wrap">
+
+<header class="hero">
+  <svg class="icon" viewBox="0 0 100 100" role="img" aria-label="MiVibe 新图标">
+    <rect width="100" height="100" rx="22.5" fill="url(#g-tide)"/>
+    <use href="#glyph" fill="#fff"/>
+  </svg>
+  <div>
+    <div class="eyebrow">品牌设计稿 · 草案 v1 · 待确认</div>
+    <h1>MiVibe</h1>
+    <div class="tag">按住说话，<span>松手成文。</span></div>
+    <p>整套视觉从一个动作出发：声音变成文字。标志是三根声波接一个文本光标，一种品牌色贯穿所有"进行中"的语音阶段。应用图标、菜单栏、浮条、设置窗口、README 和 GitHub 社交卡片都用这一套。</p>
+  </div>
+</header>
+
+<section>
+  <div class="eyebrow">现状</div>
+  <h2>现在哪里不一致</h2>
+  <div class="issues">
+    <div class="issue"><b>图标是通用麦克风</b><span>SF Symbols 的 mic.fill 放在蓝紫渐变上，和任何录音应用都分不开，也没表达"成文"。</span></div>
+    <div class="issue"><b>README 用的是小米产品照</b><span>仓库首页的主视觉是别人的硬件和工业设计，和应用内的自有视觉是两套语言，也有商标风险。</span></div>
+    <div class="issue"><b>浮条三个进行中状态难以分辨</b><span>正在听是蓝，正在转写是紫，正在改写是另一种紫，色相只差 20°，一眼看不出区别，也没有主次。</span></div>
+    <div class="issue"><b>图标四周留了透明边</b><span>macOS 26 起，边缘透明的旧式图标会被系统套上灰色底板，在程序坞里显得小一圈。新图标要按苹果圆角矩形满铺。</span></div>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow">标志</div>
+  <h2>声波接光标</h2>
+  <p class="lead">左边三根高低不同的圆头竖条是声音，右边的工字光标是文字输入的位置。线条统一 8–9 单位粗、圆头，缩到 16 像素仍能认出。不再使用麦克风，也不出现遥控器外形，避免和小米的产品形象绑定。</p>
+  <div class="board">
+    <div class="grid">
+      <div>
+        <svg class="construct" viewBox="0 0 100 100" role="img" aria-label="标志构造网格">
+          <rect width="100" height="100" rx="22.5" fill="none" stroke="currentColor" stroke-opacity=".25"/>
+          <g stroke="var(--tide)" stroke-opacity=".35" stroke-width=".4">
+            <line x1="0" y1="50" x2="100" y2="50"/><line x1="50" y1="0" x2="50" y2="100"/>
+            <line x1="0" y1="18" x2="100" y2="18"/><line x1="0" y1="82" x2="100" y2="82"/>
+            <line x1="17" y1="0" x2="17" y2="100"/><line x1="81" y1="0" x2="81" y2="100"/>
+          </g>
+          <use href="#glyph" fill="var(--fg)" fill-opacity=".9"/>
+        </svg>
+        <p class="cap">字形占 64×64 的安全区，居中；三根声波高度比 20 : 44 : 28，最高的那根不超过光标。</p>
+      </div>
+      <div style="display:grid;gap:14px;align-content:start">
+        <h3>应用图标</h3>
+        <div class="icons-row">
+          <figure><svg viewBox="0 0 100 100" width="96" height="96"><rect width="100" height="100" rx="22.5" fill="url(#g-tide)"/><use href="#glyph" fill="#fff"/></svg><figcaption>默认</figcaption></figure>
+          <figure><svg viewBox="0 0 100 100" width="96" height="96"><rect width="100" height="100" rx="22.5" fill="url(#g-tide-dark)"/><use href="#glyph" fill="#22B8C6"/></svg><figcaption>深色图标</figcaption></figure>
+          <figure><svg viewBox="0 0 100 100" width="32" height="32"><rect width="100" height="100" rx="22.5" fill="url(#g-tide)"/><use href="#glyph" fill="#fff"/></svg><figcaption>32</figcaption></figure>
+          <figure><svg viewBox="0 0 100 100" width="16" height="16"><rect width="100" height="100" rx="22.5" fill="url(#g-tide)"/><use href="#glyph" fill="#fff"/></svg><figcaption>16</figcaption></figure>
+        </div>
+        <p class="cap">满铺苹果圆角矩形，内容边缘 865 px / 1024 画布，和系统自带应用在程序坞里一样大。深色图标用于 macOS 的深色图标模式。</p>
+      </div>
+    </div>
+    <div class="grid">
+      <div class="dock light">
+        <svg viewBox="0 0 100 100"><rect width="100" height="100" rx="22.5" fill="#fff"/><rect x="18" y="18" width="64" height="64" rx="14" fill="#F2B632"/></svg>
+        <svg viewBox="0 0 100 100"><rect width="100" height="100" rx="22.5" fill="url(#g-tide)"/><use href="#glyph" fill="#fff"/></svg>
+        <svg viewBox="0 0 100 100"><rect width="100" height="100" rx="22.5" fill="#3B3B3F"/><circle cx="50" cy="50" r="26" fill="none" stroke="#fff" stroke-width="7"/></svg>
+      </div>
+      <div class="dock dark">
+        <svg viewBox="0 0 100 100"><rect width="100" height="100" rx="22.5" fill="#fff"/><rect x="18" y="18" width="64" height="64" rx="14" fill="#F2B632"/></svg>
+        <svg viewBox="0 0 100 100"><rect width="100" height="100" rx="22.5" fill="url(#g-tide-dark)"/><use href="#glyph" fill="#22B8C6"/></svg>
+        <svg viewBox="0 0 100 100"><rect width="100" height="100" rx="22.5" fill="#3B3B3F"/><circle cx="50" cy="50" r="26" fill="none" stroke="#fff" stroke-width="7"/></svg>
+      </div>
+    </div>
+    <p class="cap">放在程序坞里和旁边的应用对比（左右两个是示意用的占位图标）。</p>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow">菜单栏</div>
+  <h2>单色模板图标，四种状态</h2>
+  <p class="lead">菜单栏图标是模板图（单色，随系统浅色 / 深色自动反色），不使用品牌色。录音时声波跳动，用户不看浮条也知道正在听。现在用的是系统麦克风符号，换成标志字形后和应用图标呼应。</p>
+  <div class="board">
+    <div class="mb-states">
+      <div class="menubar light"><svg viewBox="0 0 100 100" class="lv" fill="currentColor"><rect x="17" y="40" width="9" height="20" rx="4.5"/><rect x="31" y="28" width="9" height="44" rx="4.5"/><rect x="45" y="36" width="9" height="28" rx="4.5"/><rect x="66" y="21" width="8" height="58" rx="4"/><rect x="59" y="18" width="22" height="7" rx="3.5"/><rect x="59" y="75" width="22" height="7" rx="3.5"/></svg><span>周二 14:20</span></div>
+      <div class="menubar dark"><svg viewBox="0 0 100 100" fill="currentColor"><use href="#glyph"/></svg><span>周二 14:20</span></div>
+    </div>
+    <div class="mb-legend">
+      <div><svg viewBox="0 0 100 100" fill="currentColor"><use href="#glyph"/></svg>已连接</div>
+      <div><svg viewBox="0 0 100 100" fill="currentColor" class="lv"><rect x="17" y="40" width="9" height="20" rx="4.5"/><rect x="31" y="28" width="9" height="44" rx="4.5"/><rect x="45" y="36" width="9" height="28" rx="4.5"/><rect x="66" y="21" width="8" height="58" rx="4"/><rect x="59" y="18" width="22" height="7" rx="3.5"/><rect x="59" y="75" width="22" height="7" rx="3.5"/></svg>正在听（声波跳动）</div>
+      <div><svg viewBox="0 0 100 100" fill="currentColor" fill-opacity=".38"><use href="#glyph"/></svg>已配对 · 未连接（变淡）</div>
+      <div><svg viewBox="0 0 100 100" fill="currentColor"><g fill-opacity=".38"><use href="#glyph"/></g><circle cx="80" cy="80" r="16" fill="currentColor"/><rect x="72" y="77.5" width="16" height="5" rx="2.5" fill="var(--bg)"/><rect x="77.5" y="72" width="5" height="16" rx="2.5" fill="var(--bg)"/></svg>未配对（右下角加号）</div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow">色彩</div>
+  <h2>一种品牌色管过程，语义色只管结果</h2>
+  <div class="principle">
+    <div class="p1"><h3>进行中 = 潮汐青</h3><p>正在听、正在转写、正在改写都是同一件事的不同阶段，统一用品牌色。三者靠图标和动效区分：实心 + 跳动声波、描边 + 转圈、渐变 + 闪光。</p><div class="dots"><i style="background:var(--tide)"></i><i style="background:var(--tide);opacity:.45"></i><i style="background:linear-gradient(135deg,var(--tide),#9BE3E8)"></i></div></div>
+    <div class="p2"><h3>结果 = 语义色</h3><p>已输入是绿，需处理是琥珀，提示是中性灰。结果色只在结束时出现，停留 2 秒左右，用户一眼知道成没成。</p><div class="dots"><i style="background:var(--ok)"></i><i style="background:var(--warn)"></i><i style="background:var(--note)"></i></div></div>
+  </div>
+  <div class="swatches">
+    <div class="sw"><div class="chip" style="background:#0C98A8"></div><div class="meta"><b>潮汐青</b><span class="mono">#0C98A8 · 深色 #22B8C6</span><span>品牌主色、进行中</span></div></div>
+    <div class="sw"><div class="chip" style="background:#08717F"></div><div class="meta"><b>深潮</b><span class="mono">#08717F · 深色 #5FD3DC</span><span>浅底上的文字与链接</span></div></div>
+    <div class="sw"><div class="chip" style="background:#0E1A1F"></div><div class="meta"><b>墨</b><span class="mono">#0E1A1F</span><span>深色图标、深色展示</span></div></div>
+    <div class="sw"><div class="chip" style="background:#1D9A57"></div><div class="meta"><b>已输入</b><span class="mono">#1D9A57 · 深色 #3CC97D</span><span>成功</span></div></div>
+    <div class="sw"><div class="chip" style="background:#C27400"></div><div class="meta"><b>需处理</b><span class="mono">#C27400 · 深色 #F0A43A</span><span>阻塞、失焦、失败</span></div></div>
+    <div class="sw"><div class="chip" style="background:#6B7A7E"></div><div class="meta"><b>提示</b><span class="mono">#6B7A7E · 深色 #7F9297</span><span>已忽略、中断等说明</span></div></div>
+  </div>
+  <p class="cap">中性灰都略偏青，和品牌色同一色温。设置窗口的开关、选中项和链接统一改用品牌色，不再用系统默认蓝。</p>
+
+  <h3 style="margin-top:12px">品牌色有三个候选</h3>
+  <div class="options">
+    <div class="opt rec">
+      <div class="row"><svg viewBox="0 0 100 100"><rect width="100" height="100" rx="22.5" fill="url(#g-tide)"/><use href="#glyph" fill="#fff"/></svg><div><b>A · 潮汐青</b><br><span class="pill">推荐</span></div></div>
+      <p>和系统蓝、琥珀、成功绿都拉得开，深色和浅色背景上都清楚；声音、水波的联想和产品贴合，也和小米橙、苹果蓝都不撞。</p>
+    </div>
+    <div class="opt">
+      <div class="row"><svg viewBox="0 0 100 100"><rect width="100" height="100" rx="22.5" fill="url(#g-indigo)"/><use href="#glyph" fill="#fff"/></svg><div><b>B · 靛蓝延续</b></div></div>
+      <p>沿用现在图标的色系，老用户最熟悉。缺点是和系统强调色（蓝）太近，设置窗口里分不出哪些是 MiVibe 自己的颜色，而且蓝紫渐变很常见。</p>
+    </div>
+    <div class="opt">
+      <div class="row"><svg viewBox="0 0 100 100"><rect width="100" height="100" rx="22.5" fill="url(#g-coral)"/><use href="#glyph" fill="#fff"/></svg><div><b>C · 珊瑚红</b></div></div>
+      <p>"录音中"的直觉最强（像录音红点）。但红色容易被读成出错，又和小米橙接近，需处理的琥珀色也得跟着改。</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow">浮条</div>
+  <h2>六个状态</h2>
+  <p class="lead">沿用上一轮的毛玻璃底和状态色细描边，只改颜色、图标和动效。下面左上是浅色外观放在浅色和深色内容上，右边是深色外观。</p>
+  <div class="grid">
+    <div class="stage l">
+      <div class="fbar s-listen"><div class="ball"><svg viewBox="0 0 100 100" class="lv" fill="currentColor"><rect x="20" y="36" width="12" height="28" rx="6"/><rect x="44" y="20" width="12" height="60" rx="6"/><rect x="68" y="32" width="12" height="36" rx="6"/></svg></div><b>正在听</b><span>松开语音键结束</span></div>
+      <div class="fbar s-trans"><div class="ball"><svg viewBox="0 0 24 24" class="spin" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 3a9 9 0 1 0 9 9"/></svg></div><b>正在转写</b><span>可以说下一句</span></div>
+      <div class="fbar s-polish"><div class="ball"><svg viewBox="0 0 24 24" fill="currentColor"><path class="tw" d="M12 2.5l1.9 5.6 5.6 1.9-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.9z"/><circle cx="18.5" cy="18.5" r="2"/></svg></div><b>正在改写</b><span>整理成正式语气</span></div>
+    </div>
+    <div class="stage d">
+      <div class="fbar s-ok"><div class="ball"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><b>已输入</b><span>文字已写入目标输入框</span></div>
+      <div class="fbar s-note"><div class="ball"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="10.6" y="10" width="2.8" height="8" rx="1.4"/><circle cx="12" cy="6.6" r="1.7"/></svg></div><b>没有听到内容</b><span>已忽略</span></div>
+      <div class="fbar s-warn"><div class="ball"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="10.6" y="5" width="2.8" height="9.5" rx="1.4"/><circle cx="12" cy="18" r="1.7"/></svg></div><b>需处理</b><span>点击菜单栏「输入到这里」</span></div>
+    </div>
+  </div>
+  <div class="statetable">
+    <table>
+      <thead><tr><th>状态</th><th>颜色</th><th>图标</th><th>动效</th><th>停留</th></tr></thead>
+      <tbody>
+        <tr><td>正在听</td><td><span class="dot" style="background:var(--tide)"></span>潮汐青 · 实心</td><td>三根声波</td><td>高度跟随实时音量</td><td>直到松手</td></tr>
+        <tr><td>正在转写</td><td><span class="dot" style="background:var(--tide);opacity:.45"></span>潮汐青 · 浅底描边</td><td>开口圆环</td><td>匀速转圈</td><td>直到结果回来</td></tr>
+        <tr><td>正在改写</td><td><span class="dot" style="background:linear-gradient(135deg,var(--tide),#9BE3E8)"></span>潮汐青 · 渐变</td><td>四角星</td><td>轻微闪烁</td><td>最长 5 秒</td></tr>
+        <tr><td>已输入</td><td><span class="dot" style="background:var(--ok)"></span>成功绿</td><td>对勾</td><td>一次描线</td><td>1.5 秒后收起</td></tr>
+        <tr><td>提示</td><td><span class="dot" style="background:var(--note)"></span>中性灰</td><td>信息符号</td><td>无</td><td>2 秒后收起</td></tr>
+        <tr><td>需处理</td><td><span class="dot" style="background:var(--warn)"></span>琥珀</td><td>感叹号</td><td>出现时轻晃一次</td><td>处理完才收起</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow">仓库</div>
+  <h2>README 与 GitHub</h2>
+  <p class="lead">README 主视觉从产品照片换成一张自绘的插画：标志放大，声波从左侧流入一个输入框，框里是标语。文字里注明「适用于小米蓝牙语音遥控器」，不使用对方的照片和标识。浅色、深色各出一张，用 GitHub 的 <code>&lt;picture&gt;</code> 按访客主题切换。</p>
+  <div class="readme">
+    <div class="chrome"><i></i><i></i><i></i><span>github.com/taliove/mi-vibe</span></div>
+    <div class="body">
+      <svg class="hero-art" viewBox="0 0 620 200" role="img" aria-label="README 主视觉：声波流入输入框">
+        <g transform="translate(40 50)"><rect width="100" height="100" rx="22.5" fill="url(#g-tide)"/><use href="#glyph" fill="#fff"/></g>
+        <g fill="var(--tide)">
+          <rect x="166" y="92" width="6" height="16" rx="3" opacity=".35"/>
+          <rect x="180" y="80" width="6" height="40" rx="3" opacity=".5"/>
+          <rect x="194" y="70" width="6" height="60" rx="3" opacity=".7"/>
+          <rect x="208" y="84" width="6" height="32" rx="3" opacity=".85"/>
+          <rect x="222" y="76" width="6" height="48" rx="3"/>
+          <rect x="236" y="90" width="6" height="20" rx="3"/>
+        </g>
+        <rect x="262" y="66" width="320" height="68" rx="14" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5"/>
+        <text x="286" y="108" font-family="-apple-system, PingFang SC, sans-serif" font-size="22" fill="var(--fg)">按住说话，松手成文。</text>
+        <rect x="498" y="84" width="3" height="32" rx="1.5" fill="var(--tide)"/>
+      </svg>
+      <h3>MiVibe</h3>
+      <p class="cap">按住说话，松手成文。· Hold to talk. Release to write.</p>
+      <div class="badges"><span class="badge"><b>macOS</b><em>native</em></span><span class="badge"><b>Swift</b><em>6.0</em></span><span class="badge"><b>ASR</b><em>cloud + local</em></span></div>
+    </div>
+  </div>
+  <p class="cap">徽章统一成墨色标签 + 品牌色数值，替代现在的黑、橙、绿三种颜色。</p>
+
+  <h3>社交预览图（1280 × 640）</h3>
+  <div class="social">
+    <svg viewBox="0 0 1280 640" role="img" aria-label="GitHub 社交预览图">
+      <rect width="1280" height="640" fill="#0E1A1F"/>
+      <g fill="#22B8C6" opacity=".12">
+        <rect x="760" y="120" width="44" height="400" rx="22"/><rect x="840" y="40" width="44" height="560" rx="22"/><rect x="920" y="160" width="44" height="320" rx="22"/><rect x="1000" y="90" width="44" height="460" rx="22"/><rect x="1080" y="200" width="44" height="240" rx="22"/>
+      </g>
+      <g transform="translate(96 150) scale(1.6)"><rect width="100" height="100" rx="22.5" fill="url(#g-tide)"/><use href="#glyph" fill="#fff"/></g>
+      <text x="96" y="430" font-family="Bricolage Grotesque, -apple-system, sans-serif" font-weight="700" font-size="96" fill="#E4EDEE">MiVibe</text>
+      <text x="96" y="500" font-family="-apple-system, PingFang SC, sans-serif" font-size="40" fill="#E4EDEE">按住说话，<tspan fill="#22B8C6">松手成文。</tspan></text>
+      <text x="96" y="552" font-family="-apple-system, sans-serif" font-size="26" fill="#93A5A9">Voice input for macOS with a Bluetooth voice remote</text>
+    </svg>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow">落地</div>
+  <h2>确认后要改的地方</h2>
+  <div class="todo">
+    <div><span>Scripts/make-icon.swift</span><span>重画图标：苹果圆角矩形满铺、潮汐青渐变、声波光标字形；另出深色图标。重新生成 AppIcon.icns 并核对程序坞里的大小。</span></div>
+    <div><span>Sources/MiVibe/UI/BrandPalette.swift（新）</span><span>品牌色与语义色集中定义，浅色 / 深色两套取值，界面代码不再写死 RGB。</span></div>
+    <div><span>AppState.swift · FloatPanel.swift</span><span>浮条改用新配色、新图标和动效；正在听的声波接实时音量。</span></div>
+    <div><span>菜单栏图标</span><span>四种状态的模板图标替换现在的 mic 系列符号，录音时声波跳动。</span></div>
+    <div><span>设置窗口</span><span>强调色改为品牌色。</span></div>
+    <div><span>docs/images/</span><span>README 主视觉浅色 / 深色各一张、社交预览图，都由脚本从同一份矢量生成；删除产品照片。</span></div>
+    <div><span>README.md</span><span>换主视觉、统一徽章颜色，补一行「适用于小米蓝牙语音遥控器」。</span></div>
+    <div><span>GitHub 设置</span><span>上传社交预览图（这一项只能在网页上手动传，我给你文件）。</span></div>
+  </div>
+</section>
+
+<section class="ask">
+  <div class="eyebrow">需要你定</div>
+  <ol>
+    <li>品牌色选 A 潮汐青、B 靛蓝延续，还是 C 珊瑚红？</li>
+    <li>标志「声波 + 光标」可以吗？还是想保留麦克风的意象？</li>
+    <li>名字里的 "Mi" 和小米品牌相同。这一稿没有改名，只是去掉了产品照片；要不要一并考虑，你来定。</li>
+  </ol>
+</section>
+
+</div>
