@@ -15,10 +15,14 @@ struct MiVibeApp: App {
             // 队列里还有没处理完的内容时挂个角标。浮条超时会自己收起，但内容不会
             // 丢——没有这个角标，用户就无从得知还有文字在等着处理。
             ZStack(alignment: .topTrailing) {
-                Image(systemName: coordinator.link.icon)
+                // 品牌标记模板图标（epic #1 子任务 B）：isTemplate，深浅菜单栏由系统着色。
+                // 正在听暂用静态完整标记，三帧电平图在 MenuBarIcon.levelFrames，由 F 驱动。
+                Image(nsImage: coordinator.float == .listening
+                      ? MenuBarIcon.listening
+                      : MenuBarIcon.image(for: coordinator.link))
                 if coordinator.hasPendingWork {
                     Circle()
-                        .fill(.red)
+                        .fill(Color.brandError)
                         .frame(width: 5, height: 5)
                         .offset(x: 2, y: -2)
                 }
