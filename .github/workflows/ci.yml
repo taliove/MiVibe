@@ -9,7 +9,7 @@ jobs:
   build-and-test:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # whisper.cpp 源码不进仓库（Vendor/ 被 gitignore），构建前先拉取。
       - name: Fetch whisper.cpp
