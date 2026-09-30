@@ -488,7 +488,7 @@ private struct FloatSurfaceModifier: ViewModifier {
     }
 }
 
-private extension View {
+extension View {
     func floatSurface(tint: Color?, cornerRadius: CGFloat) -> some View {
         modifier(FloatSurfaceModifier(tint: tint, cornerRadius: cornerRadius))
     }

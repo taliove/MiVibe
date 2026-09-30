@@ -42,6 +42,8 @@ public enum Config {
         public var appearance: String?
         /// 外观页是否已被打开过（nil/true 决定侧栏「新」胶囊是否显示）。
         public var appearancePaneSeen: Bool?
+        /// 是否显示按键提示（屏幕中央的「键名 → 结果」）。nil = 开启。
+        public var keyHints: Bool?
 
         public init(
             doubaoAPIKey: String? = nil,
@@ -54,7 +56,8 @@ public enum Config {
             keywords: [KeywordEntry]? = nil,
             theme: String? = nil,
             appearance: String? = nil,
-            appearancePaneSeen: Bool? = nil
+            appearancePaneSeen: Bool? = nil,
+            keyHints: Bool? = nil
         ) {
             self.doubaoAPIKey = doubaoAPIKey
             self.enableNonstream = enableNonstream
@@ -67,9 +70,11 @@ public enum Config {
             self.theme = theme
             self.appearance = appearance
             self.appearancePaneSeen = appearancePaneSeen
+            self.keyHints = keyHints
         }
 
         public var effectiveKeyTakeover: Bool { keyTakeover ?? true }
+        public var effectiveKeyHints: Bool { keyHints ?? true }
         public var effectiveKeyMap: KeyMapTable { keyMap ?? KeyMapTable() }
         public var effectiveASRProvider: ASREngine { ASREngine(rawValue: asrProvider ?? "") ?? .doubao }
         public var effectiveRewrite: RewriteConfig { rewrite ?? RewriteConfig() }

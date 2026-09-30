@@ -11,12 +11,14 @@ Each release has one section, Chinese first, English second. The release workflo
 - 以 MIT 许可证开源，安装包内附带本项目与 whisper.cpp 的许可声明。
 - 新增安全漏洞私下报告渠道（SECURITY.md）。
 - 修复：几乎同时按下菜单键和返回键后，模式选单再也打不开（按菜单键无反应，按返回键时一闪而过）。
+- 新增按键提示：按下遥控器按键时在屏幕中央短暂显示键名与这一次的实际结果（如「确认 → ⌘↩」「菜单 → 模式选单」），可在「设置 → 遥控器」关闭。
 
 ### What's New
 
 - Open-sourced under the MIT License; the app bundle now includes the license notices for MiVibe and whisper.cpp.
 - A private channel for reporting security issues (SECURITY.md).
 - Fix: after pressing the menu and back keys almost together, the mode picker no longer opened (the menu key did nothing and the back key only flashed it).
+- Key hints: pressing a remote key briefly shows the key and what it actually did in the center of the screen (e.g. "Confirm → ⌘↩", "Menu → Mode picker"); turn it off in Settings → Remote.
 
 ## [0.4.0] - 2026-09-30
 
