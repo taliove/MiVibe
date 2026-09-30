@@ -25,3 +25,6 @@ jobs:
       # (no signing identity on CI → falls back to ad-hoc with a warning, by design).
       - name: Assemble app bundle
         run: MIVIBE_SIGN_IDENTITY=- Scripts/build-app.sh release
+
+      - name: Package DMG
+        run: Scripts/make-dmg.sh

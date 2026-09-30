@@ -26,17 +26,25 @@ jobs:
       - name: Build app bundle
         run: MIVIBE_SIGN_IDENTITY=- Scripts/build-app.sh release
 
-      - name: Zip bundle
-        run: ditto -c -k --sequesterRsrc --keepParent build/MiVibe.app build/MiVibe.zip
+      - name: Package DMG and zip
+        run: |
+          Scripts/make-dmg.sh
+          VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' build/MiVibe.app/Contents/Info.plist)"
+          ditto -c -k --sequesterRsrc --keepParent build/MiVibe.app "build/MiVibe-${VERSION}-arm64.zip"
+          # The tag is the release identity; refuse to publish if it disagrees with the bundle.
+          [ "v${VERSION}" = "$GITHUB_REF_NAME" ] || { echo "Tag $GITHUB_REF_NAME != bundle version $VERSION" >&2; exit 1; }
+          sed "s/{{VERSION}}/${VERSION}/g" .github/release-notes.md > build/release-notes.md
 
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         # Idempotent: a locally created release (with the properly signed build)
-        # may already exist for the tag — then just add the CI artifact.
+        # may already exist for the tag — then just add the CI artifacts.
+        # --generate-notes appends the commit changelog after the install guide.
         run: |
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" build/MiVibe.zip --clobber
+            gh release upload "$GITHUB_REF_NAME" build/MiVibe-*.dmg build/MiVibe-*.zip --clobber
           else
-            gh release create "$GITHUB_REF_NAME" build/MiVibe.zip --generate-notes --verify-tag
+            gh release create "$GITHUB_REF_NAME" build/MiVibe-*.dmg build/MiVibe-*.zip \
+              --title "MiVibe $GITHUB_REF_NAME" --notes-file build/release-notes.md --generate-notes --verify-tag
           fi
