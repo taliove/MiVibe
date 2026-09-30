@@ -73,7 +73,7 @@ Doubao receives recorded audio **after recording ends**. Local recognition with 
 
 API keys are stored in plaintext at `~/.config/mivibe/config.json` with `0600` permissions in a `0700` directory, not in Keychain. Pending text or failed recordings use `pending.json` in the same directory, also plaintext with `0600` permissions, and are read then deleted on startup. Audio persistence has a 4 MiB budget; exceeding it retains text only. Models are downloaded on demand to `~/Library/Application Support/MiVibe/models/` and verified with SHA256. There is no long-term recording archive.
 
-This is a personal-use, non-sandboxed, non-notarized application; the repository does not include an open-source license. Input compatibility requires per-app verification. Secure text fields reject injection, and terminal paste execution is outside the current compatibility promise.
+This is a personal-use, non-sandboxed, non-notarized application. Input compatibility requires per-app verification. Secure text fields reject injection, and terminal paste execution is outside the current compatibility promise.
 
 ## Development
 
@@ -84,6 +84,12 @@ swift run MiVibeTests
 ```
 
 Tests use a custom executable harness, not `swift test`. Read [AGENTS.md](AGENTS.md) for shared engineering rules, [CLAUDE.md](CLAUDE.md) for the Claude Code entry point, [SPEC.md](SPEC.md) for the product contract, [CONTEXT.md](CONTEXT.md) for domain terms, and [CHANGELOG.md](CHANGELOG.md) for release notes in Chinese and English. Engineering documentation is primarily in Chinese.
+
+## License and notices
+
+- MiVibe is released under the [MIT License](LICENSE). Bundled third-party software and its licenses are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+- Report security issues privately as described in [SECURITY.md](SECURITY.md), not in public issues.
+- MiVibe is an independent open-source project. It is not a Xiaomi product and is not affiliated with or endorsed by Xiaomi. "Xiaomi" and related marks are trademarks of their respective owners, as are Doubao and Volcano Engine.
 
 ---
 

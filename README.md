@@ -118,7 +118,7 @@ Scripts/deploy.sh release
 | 待处理文字 / 失败录音 | `~/.config/mivibe/pending.json`，明文、`0600`；用于跨重启恢复，启动读取后删除，不是历史归档。音频留存有 4 MiB 上限，超限时仅保留文字。 |
 | 本地识别模型 | `~/Library/Application Support/MiVibe/models/`，按需下载并校验 SHA256，不随应用分发。 |
 
-当前按个人使用方式分发，应用未启用沙盒、未公证；仓库未提供开源许可证。输入兼容性需逐应用验证，安全输入框拒绝注入，终端粘贴执行行为不在当前兼容承诺内。
+当前按个人使用方式分发，应用未启用沙盒、未公证。输入兼容性需逐应用验证，安全输入框拒绝注入，终端粘贴执行行为不在当前兼容承诺内。
 
 ## 开发与文档
 
@@ -140,6 +140,12 @@ swift run MiVibeTests      # 自带断言的可执行测试套件
 | [CHANGELOG.md](CHANGELOG.md) | 各版本更新记录（中英文）。 |
 | [docs/adr](docs/adr) | 架构决策记录。 |
 | [.scratch/mivibe](.scratch/mivibe) | 已入库的研究、票据与真机证据。 |
+
+## 许可与声明
+
+- 本项目以 [MIT 许可证](LICENSE) 开源；随包分发的第三方软件及其许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+- 安全问题请按 [SECURITY.md](SECURITY.md) 私下报告，不要开公开 issue。
+- MiVibe 是独立的开源项目，不是小米官方产品，与小米公司没有关联，也未获其认可。「小米」及相关标识是其所有者的商标。豆包、火山引擎同理。
 
 ---
 

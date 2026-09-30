@@ -4,6 +4,18 @@
 
 Each release has one section, Chinese first, English second. The release workflow copies the section matching the tag to the top of the release notes and fails if it is missing.
 
+## [Unreleased]
+
+### 本版更新
+
+- 以 MIT 许可证开源，安装包内附带本项目与 whisper.cpp 的许可声明。
+- 新增安全漏洞私下报告渠道（SECURITY.md）。
+
+### What's New
+
+- Open-sourced under the MIT License; the app bundle now includes the license notices for MiVibe and whisper.cpp.
+- A private channel for reporting security issues (SECURITY.md).
+
 ## [0.4.0] - 2026-09-30
 
 ### 本版更新

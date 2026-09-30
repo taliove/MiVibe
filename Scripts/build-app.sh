@@ -77,6 +77,9 @@ else
   echo "⚠️  未找到 MiVibe_CWhisper.bundle，本地识别的 Metal 加速将不可用（回落 CPU）"
 fi
 
+# 分发二进制须附带第三方许可（whisper.cpp 为 MIT），与本项目许可一起放进 Resources。
+cp "$ROOT/LICENSE" "$ROOT/THIRD_PARTY_NOTICES.md" "$APP/Contents/Resources/"
+
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
