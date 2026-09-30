@@ -10,9 +10,14 @@ import MiVibeCore
 @MainActor
 final class Coordinator: ObservableObject {
     @Published private(set) var link: LinkState = .unpaired
-    @Published private(set) var float: FloatState?
     @Published private(set) var queue = InputQueue()
-    @Published var lastMessage: String = ""
+    /// 此刻应显示的浮条：一条录音一条，另加至多一条提示条（SPEC §13）。
+    @Published private(set) var floats: [FloatEntry] = []
+    /// 第三条录音被拒绝的累计次数：每 +1，浮条晃一次。
+    @Published private(set) var floatShakeCount = 0
+
+    /// 浮条簿记（推导规则在 MiVibeCore 的 `FloatStack`）。
+    private let floatBoard = FloatBoard()
 
     /// 二遍识别开关（SPEC §4 默认开）。仅对豆包引擎有意义。
     @AppStorageBacked("mivibe.enableNonstream", default: true)
@@ -66,15 +71,6 @@ final class Coordinator: ObservableObject {
 
     // MARK: - 模式选单
 
-    struct ModePickerState: Equatable, Sendable {
-        struct Item: Equatable, Sendable, Identifiable {
-            let id: String
-            let name: String
-        }
-        var items: [Item]
-        var highlight: Int
-    }
-
     /// 非 nil 表示选单打开。浮条据此渲染选单界面。
     @Published private(set) var picker: ModePickerState?
     private var pickerHideTimer: Timer?
@@ -104,6 +100,9 @@ final class Coordinator: ObservableObject {
     /// 可以静静等你一辈子而屏幕上没有任何提示。
     var hasPendingWork: Bool { !queue.items.isEmpty }
 
+    /// 是否正在收音（按住语音键、录音已被队列接收）。菜单栏电平帧据此归位。
+    var isListening: Bool { activeID != nil }
+
     /// 当前改写模式的显示名（菜单栏弹层用）。
     var currentModeName: String { activeModeResolved.name(custom: rewrite.effectiveCustomModes) }
 
@@ -120,6 +119,11 @@ final class Coordinator: ObservableObject {
         localModelID = config.localModel
         rewrite = config.effectiveRewrite
         keywords = config.effectiveKeywords
+        floatBoard.onChange = { [weak self] entries, shakes in
+            guard let self else { return }
+            if floats != entries { floats = entries }
+            if floatShakeCount != shakes { floatShakeCount = shakes }
+        }
         wireRemote()
         wireKeys()
     }
@@ -175,8 +179,7 @@ final class Coordinator: ObservableObject {
             // 本地识别但没下载模型：不开始录音（语音键还按着，音频照样流出，
             // 但我们不收）。明确提示，不静默失败，更不偷偷联网走云端。
             if asrEngine == .local && currentWhisper() == nil {
-                float = .attention
-                lastMessage = "本地识别需要先下载模型，请到「设置 → 识别」下载"
+                floatBoard.notice("本地识别需要先下载模型，请到「设置 → 识别」下载", attention: true)
                 Log.chain.notice("AUDIO_START rejected: local engine without model")
                 return
             }
@@ -190,15 +193,15 @@ final class Coordinator: ObservableObject {
                 snapshots[id] = snapshot
                 let frontApp = NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "nil"
                 Log.chain.notice("AUDIO_START id=\(id) snapshot=\(snapshot == nil ? "nil" : "ok", privacy: .public) front=\(frontApp, privacy: .public)")
-                float = .listening
+                floatBoard.sync(queue.items)
                 // 录音 HUD 常驻显示 引擎 · 改写模式（用户最需要确认"现在走的是哪条路"
                 // 的时刻就是说话的那一刻）。
                 let engineTag = asrEngine == .local ? "本地" : "豆包"
-                lastMessage = "\(engineTag) · \(currentModeName)"
+                floatBoard.setMessage("\(engineTag) · \(currentModeName)", for: id)
             case .rejectedQueueFull:
+                // 不新增浮条：已有的两条晃一次，菜单栏角标照常（SPEC §13）。
                 Log.chain.notice("AUDIO_START rejected: queue full")
-                float = .attention
-                lastMessage = "已有两条未处理，请先处理"
+                floatBoard.rejectQueueFull(queue: queue.items)
             }
         }
 
@@ -214,14 +217,14 @@ final class Coordinator: ObservableObject {
             }
             queue.finishRecording(id: id)
             recordings[id] = recording.pcm
-            float = .transcribing
+            floatBoard.sync(queue.items)
             transcribe(id: id, pcm: recording.pcm)
         }
 
         // 逐帧音量：BLE 每约 15ms 给一块 480B PCM，折算成电平推给浮条。
-        // 只在听音态转发——队列满被拒时浮条显示的是"需处理"，此时不该再驱动球。
+        // 只在收音时转发（队列满被拒时不驱动球），电平只驱动正在听的那一条。
         remote.onAudioChunk = { [weak self] pcm in
-            guard let self, float == .listening else { return }
+            guard let self, activeID != nil else { return }
             lastAudioFrameAt = Date()
             onAudioLevel?(meter.push(pcm: pcm))
         }
@@ -232,8 +235,7 @@ final class Coordinator: ObservableObject {
             guard let self else { return }
             keyTakeoverActive = false
             takeoverFailure = failure
-            float = .attention
-            lastMessage = "按键接管失败：\(failure.reason)，已退回仅监听"
+            floatBoard.notice("按键接管失败：\(failure.reason)，已退回仅监听", attention: true)
             // 只有确属缺授权才补一次授权请求：`hasInputMonitoring()` 会被失配的旧
             // TCC 条目骗成"已授权"，启动时的预检可能漏弹授权框。其他原因（尤其是
             // 键盘类设备的特权限制）与输入监控无关，再请求只会误导用户。
@@ -305,8 +307,7 @@ final class Coordinator: ObservableObject {
             recordings[cancelled] = nil
             rewrittenTexts[cancelled] = nil
             if activeID == cancelled { activeID = nil }
-            float = nil
-            lastMessage = "已取消"
+            floatBoard.sync(queue.items)
         }
     }
 
@@ -320,13 +321,6 @@ final class Coordinator: ObservableObject {
     }
 
     // MARK: - 模式选单
-
-    /// 全部可选模式：原文直出 + 内置 + 自定义。
-    private var modeItems: [ModePickerState.Item] {
-        [ModePickerState.Item(id: RewriteModes.rawID, name: "原文直出")]
-            + RewriteModes.builtins.map { ModePickerState.Item(id: $0.id, name: $0.name) }
-            + rewrite.effectiveCustomModes.map { ModePickerState.Item(id: $0.id, name: $0.name) }
-    }
 
     private func openModePicker() {
         let items = modeItems
@@ -356,8 +350,7 @@ final class Coordinator: ObservableObject {
                 guard let self else { return }
                 self.closePicker()
                 self.selectMode(item.id)
-                self.float = .notice
-                self.lastMessage = "已切换到：\(item.name)"
+                self.floatBoard.notice("已切换到：\(item.name)")
             }
         }
     }
@@ -405,16 +398,6 @@ final class Coordinator: ObservableObject {
         persist()
     }
 
-    /// 菜单栏弹层的「点一下切到下一个模式」。
-    func cycleMode() {
-        let items = modeItems
-        guard let idx = items.firstIndex(where: { $0.id == rewrite.effectiveActiveMode }) else {
-            selectMode(RewriteModes.rawID)
-            return
-        }
-        selectMode(items[(idx + 1) % items.count].id)
-    }
-
     func setLLMProvider(_ provider: LLMProviderConfig?) {
         rewrite.provider = provider
         persist()
@@ -451,13 +434,6 @@ final class Coordinator: ObservableObject {
         rewrite.builtinPrompts?.removeValue(forKey: id)
         rewrittenTexts.removeAll()
         persist()
-    }
-
-    /// 内置模式当前生效的 prompt（覆盖优先）。
-    func effectiveBuiltinPrompt(_ id: String) -> String {
-        rewrite.effectiveBuiltinPrompts[id]
-            ?? RewriteModes.builtins.first { $0.id == id }?.prompt
-            ?? ""
     }
 
     private func currentWhisper() -> LocalWhisperProvider? {
@@ -517,14 +493,6 @@ final class Coordinator: ObservableObject {
         persist()
     }
 
-    /// 一次预设套用的撤销信息。会话内有效，不落盘。
-    struct PresetUndo {
-        let presetName: String
-        let scope: String?
-        /// 套用前该作用范围的原始表；nil 表示当时该应用还没有覆盖表（撤销 = 移除整个配置）。
-        let previous: AppMapping?
-    }
-
     /// 非 nil 时设置页显示「撤销本次套用」。
     @Published private(set) var presetUndo: PresetUndo?
 
@@ -571,11 +539,12 @@ final class Coordinator: ObservableObject {
         guard keyTakeover, !keys.isExclusive else { return }
         if let failure = takeoverFailure, !failure.isRetryable, !manual { return }
         guard Permissions.hasInputMonitoring() else {
-            lastMessage = "缺少「输入监控」权限，请先在系统设置中授权"
+            // 激活时的自动重试静默跳过；只有用户手动点「重试」才弹提示条。
+            if manual { floatBoard.notice("缺少「输入监控」权限，请先在系统设置中授权", attention: true) }
             return
         }
         restartKeys(takeover: true)
-        if keyTakeoverActive { lastMessage = "按键接管已生效" }
+        if keyTakeoverActive, manual { floatBoard.notice("按键接管已生效") }
     }
 
     /// App 退出前调用：撤销遥控器重映射，把按键还给系统。
@@ -611,7 +580,7 @@ final class Coordinator: ObservableObject {
         do {
             try Config.save(config)
         } catch {
-            lastMessage = "配置保存失败：\(error.localizedDescription)"
+            floatBoard.notice("配置保存失败：\(error.localizedDescription)", attention: true)
         }
     }
 
@@ -625,8 +594,8 @@ final class Coordinator: ObservableObject {
         case .local:
             guard let w = currentWhisper() else {
                 queue.transcriptionFailed(id: id)
-                float = .attention
-                lastMessage = "本地模型不可用，请到「设置 → 识别」下载"
+                floatBoard.sync(queue.items)
+                floatBoard.setMessage("本地模型不可用，请到「设置 → 识别」下载", for: id)
                 return
             }
             provider = w
@@ -661,57 +630,21 @@ final class Coordinator: ObservableObject {
                 Log.chain.error("transcribe failed id=\(id): \(error.localizedDescription)")
                 await MainActor.run {
                     self.queue.transcriptionFailed(id: id)
-                    self.float = .attention
-                    self.lastMessage = error.localizedDescription
+                    self.floatBoard.sync(self.queue.items)
+                    self.floatBoard.setMessage(error.localizedDescription, for: id)
                 }
             }
         }
     }
 
-    /// 转写整体超时。本地引擎是阻塞 C 调用、取消不掉，超时后它的结果会晚到，
-    /// 那时该项已是「转写失败」，`transcriptionSucceeded` 对它是 no-op。
-    private nonisolated static func transcribe(pcm: Data, with provider: any ASRProvider,
-                                               timeout: TimeInterval) async throws -> String {
-        try await withThrowingTaskGroup(of: String.self) { group in
-            group.addTask { try await provider.transcribe(pcm: pcm) }
-            group.addTask {
-                try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
-                throw TranscribeTimeout(seconds: timeout)
-            }
-            let first = try await group.next()!
-            group.cancelAll()
-            return first
-        }
-    }
-
-    private struct TranscribeTimeout: LocalizedError {
-        let seconds: TimeInterval
-        var errorDescription: String? { "转写超时（\(Int(seconds)) 秒），可在菜单里重试" }
-    }
-
-    /// 没有产出的录音出队，并让浮条反映队列里剩下的状态。
+    /// 没有产出的录音出队：它的浮条移除，另起一条提示说明原因（其他录音条不受影响）。
     private func dropEmpty(id: Int, message: String) {
         queue.transcriptionEmpty(id: id)
         snapshots[id] = nil
         recordings[id] = nil
         Log.chain.notice("dropped empty recording id=\(id)")
-        syncFloatToQueue(fallbackNotice: message)
-    }
-
-    /// 浮条跟随队列：还有进行中的项就显示它，有阻塞项就提示需处理，都没有才显示提示。
-    private func syncFloatToQueue(fallbackNotice: String) {
-        let phases = queue.items.map(\.phase)
-        if phases.contains(where: { if case .listening = $0 { return true }; return false }) {
-            float = .listening
-        } else if phases.contains(where: { if case .transcribing = $0 { return true }; return false }) {
-            float = .transcribing
-        } else if queue.hasBlocker {
-            float = .attention
-            lastMessage = "还有待处理的内容，请在菜单里处理"
-        } else {
-            float = .notice
-            lastMessage = fallbackNotice
-        }
+        floatBoard.sync(queue.items)
+        floatBoard.notice(message)
     }
 
     /// 按序输入队首可注入项。前面有阻塞就停手。
@@ -719,13 +652,16 @@ final class Coordinator: ObservableObject {
     /// 改写挂在这里而不是转写完成时：改写是注入前的一次性变换，待处理项重试
     /// （「输入到这里」）时会用**当时的**模式重新改写，队列里存的始终是原文。
     private func drain() {
-        guard !queue.hasBlocker, let next = queue.injectable else { return }
+        guard !queue.hasBlocker, let next = queue.injectable else {
+            floatBoard.sync(queue.items)
+            return
+        }
 
         guard let saved = snapshots[next.id] else {
             Log.chain.error("drain id=\(next.id): no snapshot (录制时焦点快照失败) → targetLost")
             queue.targetLost(id: next.id)
-            float = .attention
-            lastMessage = "目标已失效，请选好输入框后点「输入到这里」"
+            floatBoard.sync(queue.items)
+            floatBoard.setMessage("目标已失效，请选好输入框后点「输入到这里」", for: next.id)
             return
         }
 
@@ -733,7 +669,7 @@ final class Coordinator: ObservableObject {
         // （改写最多 5 秒，期间焦点可能漂移，必须重新比对，不能省事）。
         if needsRewrite(id: next.id) {
             rewritingIDs.insert(next.id)
-            float = .polishing
+            floatBoard.setPolishing(true, for: next.id, queue: queue.items)
             let config = rewrite
             let entries = keywords
             let raw = next.text
@@ -744,6 +680,7 @@ final class Coordinator: ObservableObject {
                     guard let self else { return }
                     self.rewritingIDs.remove(id)
                     self.rewrittenTexts[id] = text
+                    self.floatBoard.setPolishing(false, for: id, queue: self.queue.items)
                     self.drain()
                 }
             }
@@ -754,8 +691,7 @@ final class Coordinator: ObservableObject {
         guard let current = TextInjector.snapshotFocus(), current == saved else {
             Log.chain.error("drain id=\(next.id): focus changed or snapshot now nil → targetLost")
             queue.targetLost(id: next.id)
-            float = .attention
-            lastMessage = "焦点已改变，请选好输入框后点「输入到这里」"
+            floatBoard.sync(queue.items)
             return
         }
 
@@ -773,15 +709,14 @@ final class Coordinator: ObservableObject {
             queue.injected(id: next.id)
             snapshots[next.id] = nil
             rewrittenTexts[next.id] = nil
-            float = .inserted
-            lastMessage = text
+            floatBoard.inserted(id: next.id, queue: queue.items)
             drain()   // 继续下一条
         } catch {
             Log.chain.error("inject failed id=\(next.id): \(error.localizedDescription)")
             queue.injectionFailed(id: next.id, text: next.text)
             rewrittenTexts[next.id] = nil   // 重试时用当时的模式重新改写
-            float = .attention
-            lastMessage = error.localizedDescription
+            floatBoard.sync(queue.items)
+            floatBoard.setMessage(error.localizedDescription, for: next.id)
         }
     }
 
@@ -799,7 +734,7 @@ final class Coordinator: ObservableObject {
     func resumeHere(id: Int) {
         guard let snapshot = TextInjector.snapshotFocus() else {
             Log.chain.error("resumeHere id=\(id): snapshotFocus nil（无权限或无焦点元素）")
-            lastMessage = "找不到输入焦点"
+            floatBoard.notice("找不到输入焦点，请先点一下目标输入框", attention: true)
             return
         }
         snapshots[id] = snapshot
@@ -810,12 +745,11 @@ final class Coordinator: ObservableObject {
     /// 重新转写一条失败的录音（录音保留在内存里）。
     func retry(id: Int) {
         guard let pcm = recordings[id] else {
-            lastMessage = "这条录音没有保留，请丢弃后重新说"
+            floatBoard.notice("这条录音没有保留，请丢弃后重新说", attention: true)
             return
         }
         queue.retry(id: id)
-        float = .transcribing
-        lastMessage = ""
+        floatBoard.sync(queue.items)
         transcribe(id: id, pcm: pcm)
     }
 
@@ -827,7 +761,7 @@ final class Coordinator: ObservableObject {
         snapshots[id] = nil
         recordings[id] = nil
         rewrittenTexts[id] = nil
-        if queue.items.isEmpty { float = nil }
+        floatBoard.sync(queue.items)
     }
 
     func discardAll() {
@@ -835,23 +769,6 @@ final class Coordinator: ObservableObject {
         snapshots.removeAll()
         recordings.removeAll()
         rewrittenTexts.removeAll()
-        float = nil
-    }
-}
-
-/// 极简 UserDefaults 支撑的属性包装（避免为一个开关引入 SwiftUI 依赖）。
-@propertyWrapper
-struct AppStorageBacked<Value> {
-    private let key: String
-    private let defaultValue: Value
-
-    init(_ key: String, default defaultValue: Value) {
-        self.key = key
-        self.defaultValue = defaultValue
-    }
-
-    var wrappedValue: Value {
-        get { UserDefaults.standard.object(forKey: key) as? Value ?? defaultValue }
-        nonmutating set { UserDefaults.standard.set(newValue, forKey: key) }
+        floatBoard.sync(queue.items)
     }
 }

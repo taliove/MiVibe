@@ -23,5 +23,6 @@ QueueDotColorTests.run()
 SettingsPaneTests.run()
 AppearancePaneConfigTests.run()
 MotionTimingTests.run()
+FloatStackTests.run()
 
 Harness.finish()

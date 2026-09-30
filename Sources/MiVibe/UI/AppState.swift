@@ -1,3 +1,4 @@
+import MiVibeCore
 import SwiftUI
 
 /// 菜单栏三态（SPEC §7）。
@@ -26,12 +27,8 @@ enum LinkState: String, CaseIterable, Identifiable {
     }
 }
 
-/// 浮条状态（SPEC §6，07 票确认；后增 polishing 与 notice）。
-enum FloatState: String, CaseIterable, Identifiable {
-    case listening, transcribing, polishing, inserted, notice, attention
-
-    var id: String { rawValue }
-
+/// 浮条状态的界面文案与颜色（状态本身在 MiVibeCore 的 FloatStack.swift，SPEC §6 / §13）。
+extension FloatState {
     var label: String {
         switch self {
         case .listening: return "正在听"
