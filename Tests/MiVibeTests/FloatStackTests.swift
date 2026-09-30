@@ -12,6 +12,7 @@ enum FloatStackTests {
         noticeRules()
         queueFull()
         capAndOrdering()
+        reviewRegressions()
     }
 
     private typealias Entry = FloatEntry
@@ -254,6 +255,53 @@ enum FloatStackTests {
             Harness.expectEqual(Set(entries.map(\.id)).count, entries.count, "条目 id 唯一")
             Harness.expectEqual(FloatEntry(kind: .recording(7), state: .listening, message: "").id,
                                 "recording-7", "录音条 id 随队列项稳定")
+        }
+    }
+
+    /// 代码审查回归：需处理换了原因要重新计时；等在需处理后面的句子随它显示并收起。
+    static func reviewRegressions() {
+        Harness.suite("浮条：需处理换原因重新计时") {
+            var q = InputQueue()
+            var s = FloatStack()
+            let id = start(&q)
+            q.finishRecording(id: id)
+            q.transcriptionSucceeded(id: id, text: "一")
+            q.targetLost(id: id)
+            s.sync(queue: q.items, now: 0)
+            let hide = MotionTiming.attentionHideDelay
+            Harness.expectEqual(summary(s.entries(now: hide + 10)), [], "焦点已改变 30 s 后收起")
+            // 用户点「输入到这里」，注入又失败：浮条状态同为需处理，但原因变了，必须重新出现。
+            q.resume(id: id)
+            q.injectionFailed(id: id, text: "一")
+            s.sync(queue: q.items, now: hide + 12)
+            let again = s.entries(now: hide + 12)
+            Harness.expectEqual(summary(again), ["#\(id):attention"], "输入失败重新弹出")
+            Harness.expect(again.first?.message.contains("输入失败") == true, "文案换成输入失败")
+            Harness.expectEqual(summary(s.entries(now: hide * 2 + 11)), ["#\(id):attention"],
+                                "从新失败起计时，不沿用旧的计时")
+        }
+
+        Harness.suite("浮条：等在需处理后面的句子") {
+            var q = InputQueue()
+            var s = FloatStack()
+            let first = start(&q)
+            q.finishRecording(id: first)
+            let second = start(&q)
+            q.finishRecording(id: second)
+            q.transcriptionFailed(id: first)
+            q.transcriptionSucceeded(id: second, text: "二")
+            s.sync(queue: q.items, now: 0)
+            let entries = s.entries(now: 0)
+            Harness.expectEqual(summary(entries), ["#\(first):attention", "#\(second):attention"],
+                                "后句不再转圈，随前句显示需处理")
+            Harness.expect(entries.last?.message.contains("先处理上一句") == true, "文案说明在等上一句")
+            let hide = MotionTiming.attentionHideDelay
+            Harness.expectEqual(summary(s.entries(now: hide)), [], "两条一起到点收起，面板能退场")
+            // 前句重试后，后句回到正常等待（进行中），重新可见。
+            q.retry(id: first)
+            s.sync(queue: q.items, now: hide + 1)
+            Harness.expectEqual(summary(s.entries(now: hide + 1)),
+                                ["#\(first):transcribing", "#\(second):transcribing"], "阻塞解除后回到进行中")
         }
     }
 }

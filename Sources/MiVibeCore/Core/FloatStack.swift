@@ -65,6 +65,9 @@ public struct FloatStack: Equatable, Sendable {
         var custom: Bool
         /// 进入当前状态的时刻，自动收起从这里计时。
         var since: Double
+        /// 推出该状态的队列阶段：阶段变了（例如「焦点已改变」重试后变成「输入失败」）
+        /// 即使浮条状态相同也算新的一次，重新计时并换回默认文案。
+        var phase: InputQueue.Phase?
     }
 
     private struct Notice: Equatable, Sendable {
@@ -101,7 +104,7 @@ public struct FloatStack: Equatable, Sendable {
     /// 须在 `InputQueue.injected` 之后调用（否则下一次 `sync` 会按队列阶段覆盖）。
     public mutating func markInserted(id: Int, now: Double) {
         polishing.remove(id)
-        tracks[id] = Track(state: .inserted, message: "", custom: false, since: now)
+        tracks[id] = Track(state: .inserted, message: "", custom: false, since: now, phase: nil)
     }
 
     /// 发一条不属于任何录音的提示，替换现有提示条。
@@ -123,13 +126,21 @@ public struct FloatStack: Equatable, Sendable {
     public mutating func sync(queue: [InputQueue.Item], now: Double) {
         var next: [Int: Track] = [:]
         for (index, item) in queue.enumerated() {
-            let state = Self.state(for: item.phase, polishing: polishing.contains(item.id))
-            let fallback = Self.defaultMessage(for: item.phase, waiting: index > 0)
-            if var track = tracks[item.id], track.state == state {
+            // 前面有需处理项时，已转写好的后句也在等用户动手：跟着显示需处理，
+            // 随它一起到点收起，而不是一直转圈让人以为还在工作。
+            let blockedAhead = queue[..<index].contains {
+                if case .needsAttention = $0.phase { return true }; return false
+            }
+            let state = Self.state(for: item.phase, polishing: polishing.contains(item.id),
+                                   blockedAhead: blockedAhead)
+            let fallback = Self.defaultMessage(for: item.phase, waiting: index > 0,
+                                               blockedAhead: blockedAhead)
+            if var track = tracks[item.id], track.state == state, track.phase == item.phase {
                 if !track.custom { track.message = fallback }
                 next[item.id] = track
             } else {
-                next[item.id] = Track(state: state, message: fallback, custom: false, since: now)
+                next[item.id] = Track(state: state, message: fallback, custom: false,
+                                      since: now, phase: item.phase)
             }
         }
         let ids = Set(queue.map(\.id))
@@ -185,21 +196,28 @@ public struct FloatStack: Equatable, Sendable {
         return now >= since + delay
     }
 
-    /// 队列阶段 → 浮条状态。已有文字等待输入的项仍算进行中（转写圈），改写时为改写中。
-    static func state(for phase: InputQueue.Phase, polishing: Bool) -> FloatState {
+    /// 队列阶段 → 浮条状态。已有文字等待输入的项：前面有需处理项时随之显示需处理，
+    /// 否则仍算进行中（转写圈，前句写完会自动接着输入）；改写时为改写中。
+    static func state(for phase: InputQueue.Phase, polishing: Bool,
+                      blockedAhead: Bool = false) -> FloatState {
         switch phase {
         case .listening: return .listening
         case .transcribing: return .transcribing
-        case .ready: return polishing ? .polishing : .transcribing
+        case .ready:
+            if polishing { return .polishing }
+            return blockedAhead ? .attention : .transcribing
         case .needsAttention: return .attention
         }
     }
 
     /// 队列阶段的默认文案；空串让界面用状态默认指引。
-    static func defaultMessage(for phase: InputQueue.Phase, waiting: Bool) -> String {
+    static func defaultMessage(for phase: InputQueue.Phase, waiting: Bool,
+                               blockedAhead: Bool = false) -> String {
         switch phase {
         case .listening, .transcribing: return ""
-        case .ready: return waiting ? "转写完成，等前一句处理完再输入" : ""
+        case .ready:
+            if blockedAhead { return "已转写，先处理上一句，这句会接着输入" }
+            return waiting ? "已转写，等上一句输入完接着输入" : ""
         case .needsAttention(.transcriptionFailed): return "转写失败，可在菜单里重试"
         case .needsAttention(.targetLost): return "焦点已改变，请选好输入框后点「输入到这里」"
         case .needsAttention(.injectionFailed): return "输入失败，文字已保留，请在菜单里处理"

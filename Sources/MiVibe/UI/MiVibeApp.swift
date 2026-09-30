@@ -268,6 +268,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let keyHintPanel = KeyHintPanelController()
         self.keyHintPanel = keyHintPanel
         coordinator.onKeyHint = { [weak keyHintPanel] hint in keyHintPanel?.show(hint) }
+        coordinator.onKeyHintKeepAlive = { [weak keyHintPanel] in keyHintPanel?.keepAlive() }
         installTerminationSignalHandlers()
         coordinator.start()
 

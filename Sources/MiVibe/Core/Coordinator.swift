@@ -368,6 +368,8 @@ final class Coordinator: ObservableObject {
     var onPickerConfirmFlash: (() -> Void)?
     /// 按键提示外推口：AppDelegate 接到 `KeyHintPanelController.show(_:)`。
     var onKeyHint: ((KeyHint) -> Void)?
+    /// 映射键按住连发时让已显示的提示续命（不换字）。
+    var onKeyHintKeepAlive: (() -> Void)?
 
     func closePicker() {
         picker = nil
@@ -749,6 +751,7 @@ final class Coordinator: ObservableObject {
         }
         snapshots[id] = snapshot
         queue.resume(id: id)
+        floatBoard.sync(queue.items)
         drain()
     }
 

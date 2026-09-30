@@ -10,13 +10,13 @@ public struct InputQueue: Equatable {
     public static let capacity = 2
 
     /// 单条录音在队列中的阶段。
-    public enum Phase: Equatable {
+    public enum Phase: Equatable, Sendable {
         case listening              // 正在按住说话
         case transcribing           // 已松手，等转写结果
         case ready(String)          // 有文字，等待按序输入
         case needsAttention(Reason) // 需用户处理，阻塞其后的自动输入
 
-        public enum Reason: Equatable {
+        public enum Reason: Equatable, Sendable {
             case transcriptionFailed        // 转写失败，可重试（录音保留）
             case targetLost(text: String)   // 失焦/目标失效，文字暂存待「输入到这里」
             case injectionFailed(text: String) // 注入失败，文字保留

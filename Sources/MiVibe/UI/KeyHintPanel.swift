@@ -87,6 +87,13 @@ final class KeyHintPanelController {
         scheduleHide()
     }
 
+    /// 按住映射键时的连发：判定为吞掉（快捷键只发一次），提示不换字，但仍在按着，
+    /// 已可见的提示续命，别在按住途中淡出。未显示时什么也不做。
+    func keepAlive() {
+        guard panel.isVisible, model.visible else { return }
+        scheduleHide()
+    }
+
     private func scheduleHide() {
         hideTimer?.invalidate()
         hideTimer = Timer.scheduledTimer(withTimeInterval: MotionTiming.keyHintHideDelay, repeats: false) { [weak self] _ in
