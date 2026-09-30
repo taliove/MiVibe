@@ -162,7 +162,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case "light": themeStore.set(appearance: .light, persist: false)
         default: break
         }
-        // MIVIBE_FLOAT_DEMO=picker：复现「提示收起 → 打开选单 → 返回关闭」，走查关闭时不闪旧横条。
+        // MIVIBE_FLOAT_DEMO=picker：复现「提示收起 → 打开选单 → 返回关闭 → 再次打开」，走查关闭时不闪旧横条、再开时可见。
         if ProcessInfo.processInfo.environment["MIVIBE_FLOAT_DEMO"] == "picker" {
             runPickerDemo(panel)
             return
@@ -188,17 +188,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let items = ["原文直出", "转录整理", "正式书面", "简洁"].enumerated().map {
             Coordinator.ModePickerState.Item(id: "m\($0.offset)", name: $0.element)
         }
+        // 与真机同构：协调器每次变化（含遥控器按下 / 抬起）都先推状态、再推选单。
+        let message = "已切换到：转录整理"
+        var state: FloatState? = .notice
+        var picker: Coordinator.ModePickerState?
+        let refresh = {
+            panel.update(state: state, message: message)
+            panel.update(picker: picker)
+        }
+        // 相对间隔逐步排程：长延迟的 asyncAfter 会被系统合并定时器推迟，
+        // 按键按下 / 抬起之间 0.1 s 的真实节奏只能这样还原。
         let script: [(Double, () -> Void)] = [
-            (0.0, { panel.update(state: .notice, message: "已切换到：转录整理") }),
-            (4.0, { panel.update(picker: .init(items: items, highlight: 1)) }),
-            (6.0, { panel.update(picker: .init(items: items, highlight: 2)) }),
-            (8.0, { panel.update(picker: nil) }),
+            (0.0, { refresh(); state = nil }),
+            (4.0, { picker = .init(items: items, highlight: 1); refresh() }),  // 菜单键按下
+            (0.1, { picker = nil; refresh() }),                                // 几乎同时按下返回键
+            (0.05, { refresh() }),                                             // 两键抬起（真机回归触发点）
+            (0.05, { refresh() }),
+            (3.0, { picker = .init(items: items, highlight: 0); refresh() }),  // 再按菜单键：必须可见
+            (0.1, { refresh() }),
+            (3.0, { picker = nil; refresh() }),
+            (0.1, { refresh() }),
         ]
-        for (delay, action) in script {
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                MainActor.assumeIsolated { action() }
+        func run(_ index: Int) {
+            guard index < script.count else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + script[index].0) {
+                MainActor.assumeIsolated { script[index].1() }
+                run(index + 1)
             }
         }
+        run(0)
     }
 
     @MainActor private var popoverPreview: NSWindow?

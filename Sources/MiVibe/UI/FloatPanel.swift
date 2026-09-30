@@ -117,8 +117,9 @@ final class FloatPanelController {
 
         autoHideTimer?.invalidate()
         autoHideTimer = nil
-        orderOutTimer?.invalidate()
-        orderOutTimer = nil
+        // 注意：这里不取消 orderOutTimer。空状态的例行刷新若掐掉退场收尾，面板会以
+        // 透明（phase = hidden）状态一直挂着，下一次选单就在它上面「隐形」打开
+        // （真机反馈：按菜单键不出选单，按返回才闪一下）。退场只由 showPanel 打断。
         shown = state
         shownMessage = message
         dismissed = false
@@ -189,10 +190,16 @@ final class FloatPanelController {
         fitPanelSize()
         panel.positionBottomCenter()
 
-        if panel.isVisible, model.phase != .exiting {
+        // 要显示新内容：打断正在进行的退场收尾，别让它到点把面板 orderOut。
+        orderOutTimer?.invalidate()
+        orderOutTimer = nil
+
+        if panel.isVisible, model.phase == .visible {
             // 已可见：内容就地切换（球与文字各自做状态过渡），无需重新入场。
             return
         }
+        // exiting：收起途中反向回场。hidden 但面板仍在屏上（退场收尾未执行）：
+        // 按首次入场处理，否则内容停在透明态，看起来像没打开。
         let reentering = model.phase == .exiting
         if !panel.isVisible {
             panel.alphaValue = 1
@@ -228,6 +235,12 @@ final class FloatPanelController {
 
     private func hidePanel() {
         guard panel.isVisible, model.phase != .exiting else { return }
+        // 已淡到透明：不再重播退场（exiting 的不透明度是 1，会闪一下）。
+        // 收尾定时器还在就等它；没有了（不该发生）就直接收掉。
+        if model.phase == .hidden {
+            if orderOutTimer == nil { finishOrderOut() }
+            return
+        }
         // 先记相位，下一帧再推 hidden：视图先渲染 visible 值，withAnimation 才有
         // 起点可播（exit 0.24 s）。
         model.phase = .exiting
@@ -242,13 +255,20 @@ final class FloatPanelController {
             self?.orderOutTimer = Timer.scheduledTimer(withTimeInterval: MotionTiming.exitSettle, repeats: false) { [weak self] _ in
                 Task { @MainActor [weak self] in
                     guard let self, self.model.phase == .hidden else { return }
-                    self.panel.orderOut(nil)
-                    if self.pickerPendingClear {
-                        self.pickerPendingClear = false
-                        self.model.picker = nil
-                    }
+                    self.finishOrderOut()
                 }
             }
+        }
+    }
+
+    /// 退场收尾：真正移出屏幕，并清掉等待淡出完成的选单内容。
+    private func finishOrderOut() {
+        orderOutTimer?.invalidate()
+        orderOutTimer = nil
+        panel.orderOut(nil)
+        if pickerPendingClear {
+            pickerPendingClear = false
+            model.picker = nil
         }
     }
 
