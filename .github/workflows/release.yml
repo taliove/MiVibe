@@ -17,6 +17,10 @@ jobs:
       - name: Fetch whisper.cpp
         run: Scripts/fetch-whisper.sh
 
+      # 发布说明来自 CHANGELOG.md 中与标签同版本的一节；缺失时在构建前就失败。
+      - name: Release notes (changelog gate)
+        run: Scripts/release-notes.sh "${GITHUB_REF_NAME#v}" build/release-notes.md
+
       - name: Test (release gate)
         run: swift run MiVibeTests
 
@@ -33,14 +37,13 @@ jobs:
           ditto -c -k --sequesterRsrc --keepParent build/MiVibe.app "build/MiVibe-${VERSION}-arm64.zip"
           # The tag is the release identity; refuse to publish if it disagrees with the bundle.
           [ "v${VERSION}" = "$GITHUB_REF_NAME" ] || { echo "Tag $GITHUB_REF_NAME != bundle version $VERSION" >&2; exit 1; }
-          sed "s/{{VERSION}}/${VERSION}/g" .github/release-notes.md > build/release-notes.md
 
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         # Idempotent: a locally created release (with the properly signed build)
         # may already exist for the tag — then just add the CI artifacts.
-        # --generate-notes appends the commit changelog after the install guide.
+        # Notes: CHANGELOG section + install guide; --generate-notes appends the compare link.
         run: |
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
             gh release upload "$GITHUB_REF_NAME" build/MiVibe-*.dmg build/MiVibe-*.zip --clobber
