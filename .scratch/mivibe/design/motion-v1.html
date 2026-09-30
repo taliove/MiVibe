@@ -1,0 +1,639 @@
+<title>MiVibe 动效方案</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* 版式：单栏方案文档，顶部一块可操作的"按住说话"演示台，之后是原则、令牌、时序图、各界面编排、降低动态效果与性能预算 */
+:root {
+  --bg: #F2F5F5; --surface: #FFFFFF; --fg: #141C1F; --muted: #5C6A6F; --line: #D9E0E2;
+  --accent: #0C98A8; --accent-strong: #08717F; --accent-soft: #D7F1F2; --on-fill: #FFFFFF; --fill: #08717F;
+  --ok: #1D9A57; --warn: #C27400; --err: #D93A2B; --note: #6B7A7E;
+  --bar-bg: rgba(255,255,255,.84); --bar-fg: #13201F; --bar-shadow: 0 8px 24px rgba(0,0,0,.16), inset 0 0 0 .5px rgba(255,255,255,.6);
+  --stage: linear-gradient(135deg, #F7F7F5 0%, #E3E8EA 60%, #2A3136 60.2%, #1E2428 100%);
+  --f-display: "Bricolage Grotesque", "PingFang SC", "Hiragino Sans GB", system-ui, sans-serif;
+  --f-body: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --k: 1;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0C1215; --surface: #121B1F; --fg: #E4ECEE; --muted: #93A4A9; --line: #23333A;
+  --accent: #22B8C6; --accent-strong: #5FD3DC; --accent-soft: #0F3439; --on-fill: #13201F; --fill: #22B8C6;
+  --ok: #3CC97D; --warn: #F0A43A; --err: #FF6B5C; --note: #93A5A9;
+  --bar-bg: rgba(30,40,44,.84); --bar-fg: #E7EEEF; --bar-shadow: 0 8px 24px rgba(0,0,0,.5), inset 0 0 0 .5px rgba(255,255,255,.08);
+  --stage: linear-gradient(135deg, #1B2024 0%, #111518 60%, #EEF1F2 60.2%, #FFFFFF 100%);
+  color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0C1215; --surface: #121B1F; --fg: #E4ECEE; --muted: #93A4A9; --line: #23333A;
+  --accent: #22B8C6; --accent-strong: #5FD3DC; --accent-soft: #0F3439; --on-fill: #13201F; --fill: #22B8C6;
+  --ok: #3CC97D; --warn: #F0A43A; --err: #FF6B5C; --note: #93A5A9;
+  --bar-bg: rgba(30,40,44,.84); --bar-fg: #E7EEEF; --bar-shadow: 0 8px 24px rgba(0,0,0,.5), inset 0 0 0 .5px rgba(255,255,255,.08);
+  --stage: linear-gradient(135deg, #1B2024 0%, #111518 60%, #EEF1F2 60.2%, #FFFFFF 100%);
+  color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font: 15px/1.7 var(--f-body); }
+.wrap { max-width: 1040px; margin: 0 auto; padding-inline: 20px; padding-block: 36px 90px; display: grid; gap: 60px; }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; margin: 0; line-height: 1.2; }
+h1 { font-size: clamp(2rem, 5vw, 2.8rem); letter-spacing: -.02em; }
+h2 { font-size: 1.55rem; }
+h3 { font-size: 1rem; }
+p { margin: 0; max-width: 68ch; }
+.eyebrow { font: 500 .72rem/1 var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--accent-strong); }
+section { display: grid; gap: 18px; }
+.lead { color: var(--muted); }
+.cap { font-size: .82rem; color: var(--muted); }
+.board { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 22px; display: grid; gap: 18px; min-width: 0; }
+code { font: .82em var(--f-mono); }
+.tbl { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: .86rem; }
+.tbl table { min-width: 680px; }
+th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font: 500 .7rem var(--f-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+td:first-child { font-weight: 600; white-space: nowrap; }
+td .num { font-variant-numeric: tabular-nums; font-family: var(--f-mono); font-size: .8rem; }
+
+/* 原则 */
+.principles { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+.pr { border-top: 2px solid var(--accent); padding-top: 10px; display: grid; gap: 4px; }
+.pr b { font-family: var(--f-display); font-size: 1.02rem; }
+.pr span { font-size: .9rem; color: var(--muted); }
+
+/* 演示台 */
+.demo { display: grid; gap: 14px; }
+.stage { border-radius: 16px; background: var(--stage); height: 220px; position: relative; overflow: hidden; }
+.stage .shelf { position: absolute; left: 0; right: 0; bottom: 26px; display: flex; justify-content: center; }
+.menubar { position: absolute; top: 0; left: 0; right: 0; height: 26px; display: flex; align-items: center; justify-content: flex-end; gap: 16px; padding-inline: 14px;
+  background: rgba(236,238,240,.92); color: #1b1b1b; font-size: 12.5px; }
+.menubar .mbi { position: relative; width: 22px; height: 18px; display: grid; place-items: center; }
+.menubar svg { width: 17px; height: 17px; }
+.menubar .dot { position: absolute; right: 0; top: 0; width: 6px; height: 6px; border-radius: 50%; background: var(--err); transform: scale(0); transition: transform calc(var(--k) * 180ms) cubic-bezier(.3,1.6,.5,1); }
+.menubar .dot.on { transform: scale(1); }
+
+.fwrap { will-change: transform, opacity; opacity: 0; }
+.fbar { --c: var(--accent); display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 16px 0 5px; border-radius: 22px; overflow: hidden;
+  background: var(--bar-bg); color: var(--bar-fg); backdrop-filter: blur(20px) saturate(1.6); -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  border: 1px solid color-mix(in srgb, var(--c) 55%, transparent); box-shadow: var(--bar-shadow);
+  font: 13px -apple-system, "PingFang SC", sans-serif; white-space: nowrap;
+  transition: border-color calc(var(--k) * 180ms) ease-out, width calc(var(--k) * 300ms) cubic-bezier(.25,1.12,.4,1); }
+.fbar .txt { display: flex; gap: 10px; align-items: baseline; }
+.fbar b { font-weight: 600; }
+.fbar .hint { opacity: .62; }
+.ball { width: 34px; height: 34px; flex: none; }
+.ball svg { width: 34px; height: 34px; display: block; overflow: visible; }
+.ball .bg { transition: fill calc(var(--k) * 180ms) ease-out; }
+.ball .bars rect { transform-box: fill-box; transform-origin: center; }
+.ball .bars.conv rect { transition: transform calc(var(--k) * 200ms) cubic-bezier(.5,0,.2,1), opacity calc(var(--k) * 120ms) linear calc(var(--k) * 140ms); }
+.ball .arcg { transform-origin: 17px 17px; }
+.ball .arcg.spin { animation: spin calc(var(--k) * 1.2s) linear infinite; }
+.ball .arc { transition: stroke-dasharray calc(var(--k) * 240ms) cubic-bezier(.3,.8,.3,1), stroke calc(var(--k) * 180ms), opacity calc(var(--k) * 120ms); }
+.ball .check { transition: stroke-dashoffset calc(var(--k) * 350ms) cubic-bezier(.4,0,.2,1); }
+.ball .glyph { transform-box: fill-box; transform-origin: center; transition: transform calc(var(--k) * 220ms) cubic-bezier(.3,1.5,.5,1), opacity calc(var(--k) * 140ms); }
+.ball .spark { animation: twinkle calc(var(--k) * 1.6s) ease-in-out infinite; }
+.ball .beat { transform-origin: 17px 17px; }
+.ball .beat.on { animation: beat calc(var(--k) * 1.4s) ease-out 3; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes twinkle { 50% { transform: scale(.78) rotate(18deg); opacity: .7; } }
+@keyframes beat { 0%, 44%, 100% { transform: scale(1); } 6% { transform: scale(1.18); } 18% { transform: scale(1); } 26% { transform: scale(1.14); } }
+.ball .spark { transform-box: fill-box; transform-origin: center; }
+
+/* 选单 */
+.picker { position: relative; width: 280px; border-radius: 16px; background: var(--bar-bg); color: var(--bar-fg); box-shadow: var(--bar-shadow);
+  border: 1px solid color-mix(in srgb, var(--fg) 12%, transparent); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  font: 14px -apple-system, "PingFang SC", sans-serif; overflow: hidden; padding: 8px 0 0; }
+.picker .hl { position: absolute; left: 6px; right: 6px; height: 34px; border-radius: 9px; background: var(--fill); transition: top calc(var(--k) * 240ms) cubic-bezier(.25,1.15,.4,1); }
+.picker .it { position: relative; display: flex; align-items: center; gap: 9px; height: 34px; padding: 0 18px; transition: color calc(var(--k) * 120ms); }
+.picker .it .o { width: 13px; height: 13px; border-radius: 50%; border: 1.5px solid currentColor; opacity: .45; flex: none; }
+.picker .it.on { color: var(--on-fill); font-weight: 600; }
+.picker .it.on .o { opacity: 1; background: currentColor; }
+.picker .ft { font-size: 11px; opacity: .6; padding: 6px 18px 8px; }
+.picker .it.flash { animation: flash calc(var(--k) * 160ms) ease-out; }
+@keyframes flash { 50% { filter: brightness(1.35); } }
+
+/* 控制 */
+.controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
+.ctl { display: flex; align-items: center; gap: 8px; }
+.ctl > span { font: 500 .72rem var(--f-mono); letter-spacing: .08em; color: var(--muted); text-transform: uppercase; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 99px; overflow: hidden; background: var(--surface); }
+.seg button { border: 0; background: transparent; color: var(--fg); font: 500 .82rem var(--f-body); padding: 5px 11px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+.hold { font: 600 .95rem var(--f-body); padding: 12px 22px; border-radius: 12px; border: 0; background: var(--fill); color: var(--on-fill); cursor: pointer; user-select: none; touch-action: none; }
+.hold:active, .hold.down { filter: brightness(.9); transform: translateY(1px); }
+.btn { font: 500 .85rem var(--f-body); padding: 7px 12px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); cursor: pointer; }
+.btn:focus-visible, .hold:focus-visible, .seg button:focus-visible, .chk:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.chk { display: inline-flex; gap: 6px; align-items: center; font-size: .88rem; cursor: pointer; }
+.chk input { accent-color: var(--accent); }
+.log { font: .78rem var(--f-mono); color: var(--muted); min-height: 1.4em; font-variant-numeric: tabular-nums; }
+
+/* 时序图 */
+.tl { overflow-x: auto; }
+.tl svg { min-width: 680px; width: 100%; height: auto; display: block; }
+
+/* 侧栏小样 */
+.minis { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.mini { border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: grid; gap: 12px; background: var(--surface); }
+.side { position: relative; display: grid; gap: 2px; width: 190px; padding: 6px; border-radius: 10px; background: color-mix(in srgb, var(--fg) 5%, var(--surface)); }
+.side .pill { position: absolute; left: 6px; right: 6px; height: 28px; border-radius: 7px; background: var(--fill); transition: top calc(var(--k) * 240ms) cubic-bezier(.25,1.15,.4,1); }
+.side button { position: relative; border: 0; background: transparent; text-align: left; height: 28px; padding: 0 10px; border-radius: 7px; color: var(--fg); font: 13px var(--f-body); cursor: pointer; transition: color calc(var(--k) * 120ms); }
+.side button.on { color: var(--on-fill); }
+.side button:not(.on):hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.side button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.sw { display: flex; gap: 10px; }
+.sw button { width: 24px; height: 24px; border-radius: 50%; border: 0; cursor: pointer; position: relative; padding: 0; }
+.sw button::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; border: 2px solid var(--fg); transform: scale(.6); opacity: 0; transition: transform calc(var(--k) * 200ms) cubic-bezier(.3,1.5,.5,1), opacity calc(var(--k) * 120ms); }
+.sw button[aria-pressed="true"]::after { transform: scale(1); opacity: 1; }
+.sw button:focus-visible { outline: 2px solid var(--accent); outline-offset: 5px; }
+.swprev { height: 36px; border-radius: 10px; transition: background-color calc(var(--k) * 250ms) ease-in-out; display: grid; place-items: center; color: #fff; font-size: .85rem; font-weight: 600; }
+.rec { display: inline-flex; align-items: center; justify-content: center; min-width: 170px; padding: 6px 12px; border-radius: 8px; border: 1.5px solid var(--line); font-size: .85rem; cursor: pointer; background: var(--surface); color: var(--fg); }
+.rec.live { border-color: var(--accent); color: var(--accent-strong); animation: ring calc(var(--k) * 1s) ease-in-out infinite; }
+@keyframes ring { 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent); } }
+
+/* 降低动态效果 */
+.rm .fbar, .rm .ball *, .rm .picker .hl, .rm .side .pill { transition-property: opacity, fill, stroke, border-color, color, background-color !important; }
+.rm .ball .arcg.spin, .rm .ball .spark, .rm .ball .beat.on, .rm .rec.live { animation: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  .ball .arcg.spin, .ball .spark, .ball .beat.on, .rec.live { animation: none; }
+}
+
+.ask { background: var(--accent-soft); border-radius: 16px; padding: 22px; display: grid; gap: 12px; }
+.ask ol { margin: 0; padding-left: 1.3em; display: grid; gap: 8px; max-width: 74ch; }
+</style>
+
+<div class="wrap">
+
+<header style="display:grid;gap:10px">
+  <div class="eyebrow">MiVibe · 动效方案 · 第一版 · 待确认</div>
+  <h1>松手那一下</h1>
+  <p class="lead">MiVibe 的动效只为一件事服务：让你不用盯着屏幕，也知道声音走到了哪一步。这份方案给出原则、时长和曲线令牌、一个品牌签名动作，以及浮条、模式选单、菜单栏、菜单弹层和设置窗口各自怎么动。下面的演示台可以直接操作，建议先按住按钮说一句试试。</p>
+</header>
+
+<section>
+  <div class="eyebrow">演示台</div>
+  <div class="board demo" id="demo">
+    <div class="stage" aria-label="浮条演示区">
+      <div class="menubar"><span>周二 14:20</span><span class="mbi"><svg viewBox="0 0 100 100" id="mbsvg" fill="#1b1b1b"><rect x="17" y="40" width="9" height="20" rx="4.5"/><rect x="31" y="28" width="9" height="44" rx="4.5"/><rect x="45" y="36" width="9" height="28" rx="4.5"/><rect x="66" y="21" width="8" height="58" rx="4"/><rect x="59" y="18" width="22" height="7" rx="3.5"/><rect x="59" y="75" width="22" height="7" rx="3.5"/></svg><i class="dot" id="mbdot"></i></span></div>
+      <div class="shelf">
+        <div class="fwrap" id="fwrap">
+          <div class="fbar" id="fbar">
+            <div class="ball"><svg viewBox="0 0 34 34" aria-hidden="true">
+              <g class="beat" id="beat">
+                <circle class="bg" id="bg" cx="17" cy="17" r="17" fill="var(--accent)"/>
+                <g class="bars" id="bars" fill="#fff">
+                  <rect x="9" y="9" width="3.4" height="16" rx="1.7"/><rect x="15.3" y="9" width="3.4" height="16" rx="1.7"/><rect x="21.6" y="9" width="3.4" height="16" rx="1.7"/>
+                </g>
+                <g class="arcg" id="arcg"><circle class="arc" id="arc" cx="17" cy="17" r="8" fill="none" stroke="var(--accent)" stroke-width="2.6" stroke-linecap="round" stroke-dasharray="0 60" transform="rotate(-90 17 17)" opacity="0"/></g>
+                <path class="spark glyph" id="spark" d="M17 9.5l1.6 4.4 4.4 1.6-4.4 1.6L17 21.5l-1.6-4.4-4.4-1.6 4.4-1.6z" fill="#fff" opacity="0" style="transform:scale(.4)"/>
+                <path class="check" id="check" d="M11.5 17.3l3.8 3.8 7.3-7.6" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="17" stroke-dashoffset="17"/>
+                <g class="glyph" id="gwarn" opacity="0" style="transform:scale(.4)" fill="var(--warn)"><rect x="15.6" y="9.5" width="2.8" height="9.5" rx="1.4"/><circle cx="17" cy="22.6" r="1.7"/></g>
+                <g class="glyph" id="ginfo" opacity="0" style="transform:scale(.4)" fill="var(--note)"><rect x="15.6" y="15" width="2.8" height="8" rx="1.4"/><circle cx="17" cy="11.4" r="1.7"/></g>
+              </g>
+            </svg></div>
+            <div class="txt" id="txt"><b id="lbl">正在听</b><span class="hint" id="hint">松开语音键结束</span></div>
+          </div>
+          <div class="picker" id="picker" hidden>
+            <div class="hl" id="hl"></div>
+            <div id="items"></div>
+            <div class="ft">↑↓ 选择 · 确认键切换 · 返回键关闭</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="controls">
+      <button class="hold" id="hold" type="button">按住语音键</button>
+      <div class="ctl"><span>结果</span><div class="seg" id="outcome"><button type="button" data-v="ok" aria-pressed="true">已输入</button><button type="button" data-v="warn" aria-pressed="false">需处理</button></div></div>
+      <label class="chk"><input type="checkbox" id="rewrite" checked>经过改写</label>
+    </div>
+    <div class="controls">
+      <div class="ctl"><span>遥控器</span><button class="btn" type="button" id="kmenu">菜单</button><button class="btn" type="button" id="kup">↑</button><button class="btn" type="button" id="kdn">↓</button><button class="btn" type="button" id="kok">确认</button><button class="btn" type="button" id="kback">返回</button></div>
+      <div class="ctl"><span>速度</span><div class="seg" id="speed"><button type="button" data-v="1" aria-pressed="true">1×</button><button type="button" data-v="2" aria-pressed="false">½×</button><button type="button" data-v="4" aria-pressed="false">¼×</button></div></div>
+      <label class="chk"><input type="checkbox" id="rm">降低动态效果</label>
+    </div>
+    <div class="log" id="log" aria-live="polite">按住按钮（或在演示台里按住空格）说话；按住不到 0.3 秒会被当成误触。</div>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow">原则</div>
+  <h2>五条规则</h2>
+  <div class="principles">
+    <div class="pr"><b>只有正在听是活的</b><span>它的起伏来自真实音量，是唯一跟着你动的东西。其他状态只用有节拍的、可预期的动作。</span></div>
+    <div class="pr"><b>一个签名动作</b><span>松手时，三根声波收拢成一点，再展开成转写的圆弧。声音"变成文字"的那一刻只在这里表达。</span></div>
+    <div class="pr"><b>快进，稳出</b><span>出现不超过 0.3 秒，退场 0.24 秒；动效永远不挡输入，也不抢焦点。</span></div>
+    <div class="pr"><b>结果只动一次</b><span>已输入画一次对勾；需处理轻晃一次、心跳三下后静止。提醒到了就停，不一直敲你。</span></div>
+    <div class="pr"><b>静止也读得懂</b><span>开启"降低动态效果"后，每个状态都有静态等价物，只保留颜色和透明度变化。</span></div>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow">令牌</div>
+  <h2>时长与曲线</h2>
+  <p class="lead">界面代码只引用这些名字，不再散落 0.18、0.35 这样的数字。它们替换现在 <code>DesignSystem.swift</code> 里的 <code>Motion</code>（select / quickFade / toastFade 三项）。</p>
+  <div class="tbl"><table>
+    <thead><tr><th>令牌</th><th>时长</th><th>曲线（SwiftUI）</th><th>用在哪</th></tr></thead>
+    <tbody>
+      <tr><td><code>instant</code></td><td class="num">100 ms</td><td><code>.easeOut(duration: 0.10)</code></td><td>按下反馈、悬停底色、遥控器按键回显</td></tr>
+      <tr><td><code>quick</code></td><td class="num">180 ms</td><td><code>.easeOut(duration: 0.18)</code></td><td>状态颜色、描边、文字淡入淡出</td></tr>
+      <tr><td><code>standard</code></td><td class="num">≈300 ms</td><td><code>.spring(response: 0.32, dampingFraction: 0.86)</code></td><td>浮条出现、宽度伸缩、选单高亮与侧栏选中块移动</td></tr>
+      <tr><td><code>exit</code></td><td class="num">240 ms</td><td><code>.easeIn(duration: 0.24)</code></td><td>浮条收起、选单关闭</td></tr>
+      <tr><td><code>draw</code></td><td class="num">350 ms</td><td><code>.easeOut(duration: 0.35)</code></td><td>对勾描线、圆弧画入</td></tr>
+      <tr><td><code>signature</code></td><td class="num">420 ms</td><td>关键帧，见下方时序图</td><td>正在听 → 正在转写</td></tr>
+      <tr><td><code>theme</code></td><td class="num">250 ms</td><td><code>.easeInOut(duration: 0.25)</code></td><td>切换主题色时整窗换色</td></tr>
+      <tr><td><code>ambient</code></td><td class="num">循环</td><td>转圈 1.2 s / 圈；安静呼吸 0.5 Hz；菜单栏 6 帧 / 秒</td><td>进行中状态的持续动作</td></tr>
+    </tbody>
+  </table></div>
+  <p class="cap">弹簧阻尼 0.86 只会有约 1% 的过冲，看起来"落位"而不是"弹跳"。音量本身已有平滑（<code>AudioLevelMeter</code>：起音 0.07 秒、释放更慢），动画不再额外加缓动，避免声波落后于声音。</p>
+</section>
+
+<section>
+  <div class="eyebrow">签名动作</div>
+  <h2>正在听 → 正在转写（420 ms）</h2>
+  <p class="lead">把演示台速度调到 ¼× 再松手，能看清每一段。所有轨道同时从松手（收到 AUDIO_STOP）开始，没有等待。</p>
+  <div class="board tl" id="tl"></div>
+</section>
+
+<section>
+  <div class="eyebrow">编排</div>
+  <h2>各界面怎么动</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>界面</th><th>事件</th><th>动作</th><th>令牌</th></tr></thead>
+    <tbody>
+      <tr><td>浮条</td><td>出现</td><td>从下方 10 pt、缩放 0.96、透明开始，弹簧落位</td><td>standard</td></tr>
+      <tr><td></td><td>状态切换</td><td>描边颜色渐变；文字上移 4 pt 淡出，新文字从下方 4 pt 淡入；宽度随内容弹簧伸缩</td><td>quick + standard</td></tr>
+      <tr><td></td><td>正在听</td><td>三根声波各自跟随音量起伏，彼此有相位差；安静时 0.5 Hz 轻呼吸，避免看起来卡住</td><td>ambient</td></tr>
+      <tr><td></td><td>正在转写</td><td>圆弧匀速转圈，一圈 1.2 秒</td><td>ambient</td></tr>
+      <tr><td></td><td>正在改写</td><td>底色填满主题色，圆弧变白继续转，中间出现闪烁的四角星</td><td>quick + ambient</td></tr>
+      <tr><td></td><td>已输入</td><td>圆弧合拢成整圈 → 底色变成功绿 → 对勾描线一次；1.6 秒后收起</td><td>draw</td></tr>
+      <tr><td></td><td>需处理</td><td>横向轻晃一次（±4 pt，0.4 秒），小球心跳三下后静止；30 秒后收起</td><td>关键帧</td></tr>
+      <tr><td></td><td>提示（如"没有听到内容"）</td><td>只做颜色和文字淡入，信息符号弹出；2 秒后收起</td><td>quick</td></tr>
+      <tr><td></td><td>收起</td><td>下移 6 pt、缩放 0.98、淡出；动画结束后才 <code>orderOut</code>。收起途中来了新状态，就从当前位置反向回来</td><td>exit</td></tr>
+      <tr><td>模式选单</td><td>打开</td><td>浮条就地展开成选单（高度弹簧撑开），条目依次淡入，间隔 20 ms</td><td>standard</td></tr>
+      <tr><td></td><td>↑ / ↓</td><td>高亮块滑到新的一行，不是瞬间跳过去</td><td>standard</td></tr>
+      <tr><td></td><td>确认</td><td>高亮行闪亮一下，选单收回成浮条并显示"已切换：…"</td><td>instant + standard</td></tr>
+      <tr><td></td><td>返回 / 6 秒无操作</td><td>选单收回并淡出</td><td>exit</td></tr>
+      <tr><td>菜单栏图标</td><td>正在听</td><td>声波按音量分三档切换，每秒 6 帧，走离散帧而不是平滑动画（菜单栏里平滑动画显得躁）</td><td>ambient</td></tr>
+      <tr><td></td><td>出现待处理</td><td>红点弹出</td><td>quick</td></tr>
+      <tr><td>菜单弹层</td><td>待处理项增删</td><td>新项从上方滑入淡入；处理完的项收缩后移除，下方内容跟着上移</td><td>standard</td></tr>
+      <tr><td>设置窗口</td><td>切换页面</td><td>侧栏选中块滑到新行；内容区只做淡入淡出，不滑动（和系统设置一致）</td><td>standard + quick</td></tr>
+      <tr><td></td><td>切换主题色</td><td>整窗颜色渐变过去，选中色环弹出</td><td>theme</td></tr>
+      <tr><td></td><td>切换浅色 / 深色</td><td>交给系统，瞬间切换</td><td>无</td></tr>
+      <tr><td></td><td>录制快捷键</td><td>录制按钮外圈以 1 Hz 呼吸，提示正在等你按键</td><td>ambient</td></tr>
+      <tr><td></td><td>遥控器插图</td><td>实体按键按下时对应按键闪一下（保留现有行为，改用 instant）</td><td>instant</td></tr>
+      <tr><td></td><td>模型下载完成</td><td>进度条换成对勾弹出</td><td>quick</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <div class="eyebrow">设置窗口小样</div>
+  <div class="minis">
+    <div class="mini">
+      <h3>侧栏选中块</h3>
+      <div class="side" id="side"><div class="pill" id="pill"></div></div>
+      <p class="cap">点不同的页面，选中块滑过去。自绘侧栏（epic 已定）让这件事可以做。</p>
+    </div>
+    <div class="mini">
+      <h3>主题色切换</h3>
+      <div class="sw" id="sw"></div>
+      <div class="swprev" id="swprev">正在听</div>
+      <p class="cap">选中环弹出，整窗颜色 0.25 秒渐变过去。</p>
+    </div>
+    <div class="mini">
+      <h3>录制快捷键</h3>
+      <div><button type="button" class="rec" id="rec">点击录制</button></div>
+      <p class="cap">录制中外圈呼吸；按 Esc 或再点一下取消。</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow">降低动态效果</div>
+  <h2>静态等价物</h2>
+  <p class="lead">跟随系统"辅助功能 → 显示 → 减弱动态效果"。演示台勾选"降低动态效果"可以直接看到。现在的实现在这个模式下把小球统一变成一个 15 pt 圆点，六个状态看起来一样；新方案给每个状态保留可辨认的图形。</p>
+  <div class="tbl"><table>
+    <thead><tr><th>动作</th><th>降低动态效果时</th></tr></thead>
+    <tbody>
+      <tr><td>浮条出现 / 收起</td><td>只淡入淡出，不位移、不缩放</td></tr>
+      <tr><td>正在听</td><td>三根声波保持中等高度不动，整体透明度随音量在 70% 到 100% 之间变化</td></tr>
+      <tr><td>签名动作</td><td>声波与圆弧直接交叉淡变</td></tr>
+      <tr><td>正在转写 / 改写</td><td>圆弧静止；改写的四角星静止</td></tr>
+      <tr><td>已输入</td><td>对勾直接出现</td></tr>
+      <tr><td>需处理</td><td>不晃、不跳，只有颜色和感叹号</td></tr>
+      <tr><td>选单高亮、侧栏选中块</td><td>直接切换到新位置</td></tr>
+      <tr><td>菜单栏图标</td><td>正在听时显示静态完整标志</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <div class="eyebrow">性能</div>
+  <h2>预算</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>场景</th><th>预算</th><th>做法</th></tr></thead>
+    <tbody>
+      <tr><td>空闲（浮条隐藏）</td><td>0 帧</td><td>现在 <code>StatusBall</code> 对所有状态都套了 <code>TimelineView(.animation)</code>，浮条显示期间一直按屏幕刷新率重绘。改为只在正在听、转写、改写和需处理的前 5 秒使用；已输入、提示用一次性动画</td></tr>
+      <tr><td>正在听</td><td>CPU 低于 3%（M 系列）</td><td>每帧只改三根声波的缩放，不重新布局文字；毛玻璃底不参与动画</td></tr>
+      <tr><td>浮条出现</td><td>不改窗口大小</td><td>面板窗口保持固定尺寸，动画全部在 SwiftUI 内容里做，避免 <code>NSWindow</code> 改尺寸造成的卡顿</td></tr>
+      <tr><td>菜单栏</td><td>最多 6 帧 / 秒</td><td>预先画好三帧模板图，按音量档位切换</td></tr>
+    </tbody>
+  </table></div>
+  <p class="cap">实现可用 macOS 14 起的 <code>PhaseAnimator</code>（签名动作、已输入）和 <code>KeyframeAnimator</code>（需处理的轻晃）；选单高亮和侧栏选中块用 <code>matchedGeometryEffect</code>。</p>
+</section>
+
+<section class="ask">
+  <div class="eyebrow">需要你定</div>
+  <ol>
+    <li>签名动作"声波收拢成点、再展开成圆弧"可以吗？</li>
+    <li>正在听的小球从现在的"中心圆 + 12 根放射短线"换成和标志一致的三根声波，同意吗？</li>
+    <li>菜单栏图标录音时要不要跟着跳？跳会更容易被注意到，但菜单栏里一直在动的图标也可能让人分心。</li>
+    <li>需处理出现时的轻晃要不要？不要的话，只保留心跳三下。</li>
+    <li>这份动效方案是并进 epic 的 C、D 两个子 issue，还是单独开一个子 issue F？</li>
+  </ol>
+</section>
+
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const root = $("demo");
+  let k = 1;
+  const reduce = () => $("rm").checked || matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const log = m => { $("log").textContent = m; };
+  const timers = new Set();
+  const later = (ms, fn) => { const t = setTimeout(() => { timers.delete(t); fn(); }, ms * k); timers.add(t); return t; };
+  const clearAll = () => { timers.forEach(clearTimeout); timers.clear(); };
+
+  // ───── 浮条元素 ─────
+  const fwrap = $("fwrap"), fbar = $("fbar"), txt = $("txt"), lbl = $("lbl"), hint = $("hint");
+  const bg = $("bg"), bars = $("bars"), arc = $("arc"), arcg = $("arcg"), spark = $("spark"), check = $("check"), gwarn = $("gwarn"), ginfo = $("ginfo"), beat = $("beat");
+  const barEls = [...bars.children];
+  const C = 2 * Math.PI * 8;
+  let visible = false, wrapAnim = null, raf = 0, holdStart = 0, phase = "idle";
+
+  function fitWidth() {
+    const prev = fbar.style.width;
+    fbar.style.width = "auto";
+    const w = fbar.scrollWidth;
+    fbar.style.width = prev || w + "px";
+    void fbar.offsetWidth;
+    fbar.style.width = w + "px";
+  }
+  function show() {
+    if (visible && !(wrapAnim && wrapAnim.__exit)) return;
+    visible = true;
+    if (wrapAnim) wrapAnim.cancel();
+    const from = reduce() ? { opacity: 0 } : { opacity: 0, transform: "translateY(10px) scale(.96)" };
+    const cur = getComputedStyle(fwrap);
+    wrapAnim = fwrap.animate([{ opacity: cur.opacity, transform: cur.transform === "none" ? from.transform || "none" : cur.transform }, { opacity: 1, transform: "none" }],
+      { duration: 300 * k, easing: "cubic-bezier(.25,1.12,.4,1)", fill: "forwards" });
+  }
+  function hide() {
+    if (!visible) return;
+    if (wrapAnim) wrapAnim.cancel();
+    const to = reduce() ? { opacity: 0 } : { opacity: 0, transform: "translateY(6px) scale(.98)" };
+    wrapAnim = fwrap.animate([{ opacity: 1, transform: "none" }, to], { duration: 240 * k, easing: "cubic-bezier(.4,0,1,1)", fill: "forwards" });
+    wrapAnim.__exit = true;
+    wrapAnim.onfinish = () => { visible = false; $("mbdot").classList.remove("on"); };
+  }
+  function setText(label, h, color) {
+    fbar.style.setProperty("--c", color);
+    if (lbl.textContent === label && hint.textContent === h) return;
+    if (reduce()) { lbl.textContent = label; hint.textContent = h; fitWidth(); return; }
+    const out = txt.animate([{ opacity: 1, transform: "none" }, { opacity: 0, transform: "translateY(-4px)" }], { duration: 90 * k, easing: "ease-in", fill: "forwards" });
+    out.onfinish = () => {
+      lbl.textContent = label; hint.textContent = h; fitWidth();
+      txt.animate([{ opacity: 0, transform: "translateY(4px)" }, { opacity: 1, transform: "none" }], { duration: 140 * k, easing: "ease-out", fill: "forwards" });
+    };
+  }
+  function resetBall() {
+    bars.classList.remove("conv");
+    barEls.forEach(r => { r.style.transition = "none"; r.style.transform = "scaleY(.5)"; r.style.opacity = 1; });
+    arc.style.strokeDasharray = `0 ${C}`; arc.setAttribute("stroke", "var(--accent)"); arc.style.opacity = 0;
+    arcg.classList.remove("spin");
+    spark.style.opacity = 0; spark.style.transform = "scale(.4)";
+    check.style.transition = "none"; check.style.strokeDashoffset = 17; void check.getBBox();
+    check.style.transition = "";
+    [gwarn, ginfo].forEach(g => { g.style.opacity = 0; g.style.transform = "scale(.4)"; });
+    beat.classList.remove("on");
+    bg.style.fill = "var(--accent)";
+  }
+
+  // ───── 正在听：模拟音量 ─────
+  let level = 0, target = 0, nextSyll = 0, t0 = 0;
+  function listenFrame(ts) {
+    if (!t0) t0 = ts;
+    const t = (ts - t0) / 1000 / k;
+    if (t > nextSyll) { target = Math.random() < .22 ? 0.02 : 0.35 + Math.random() * .6; nextSyll = t + .08 + Math.random() * .16; }
+    const tau = target > level ? .07 : .18;
+    level += (target - level) * Math.min(1, (1 / 60) / tau);
+    const quiet = 0.1 + 0.08 * (1 + Math.sin(t * Math.PI));
+    const a = level > .08 ? level : quiet;
+    barEls.forEach((r, i) => {
+      if (reduce()) { r.style.transform = "scaleY(.6)"; bars.style.opacity = 0.7 + 0.3 * a; return; }
+      const wob = .78 + .22 * Math.sin(t * 9 + i * 2.1);
+      const base = [0.55, 1, 0.7][i];
+      r.style.transform = `scaleY(${Math.max(.22, Math.min(1, (0.25 + 0.75 * a * wob) * base + .1))})`;
+    });
+    menubarLevel(a);
+    raf = requestAnimationFrame(listenFrame);
+  }
+
+  // ───── 菜单栏：6 帧 / 秒离散 ─────
+  const mbRects = [...$("mbsvg").children].slice(0, 3);
+  const MB_BASE = [[40, 20], [28, 44], [36, 28]];
+  let mbLast = 0;
+  function menubarLevel(a) {
+    const now = performance.now();
+    if (now - mbLast < 166 * k) return;
+    mbLast = now;
+    const tier = reduce() ? 1 : (a < .3 ? 0.45 : a < .65 ? 0.75 : 1);
+    mbRects.forEach((r, i) => {
+      const [y, h] = MB_BASE[i];
+      const f = reduce() ? 1 : tier * (i === 1 ? 1 : [0.8, 1, 0.9][i] * (0.85 + Math.random() * .3));
+      const nh = Math.max(10, h * Math.min(1.1, f)), ny = 50 - nh / 2;
+      r.setAttribute("height", nh.toFixed(1)); r.setAttribute("y", ny.toFixed(1));
+    });
+  }
+  function menubarRest() { mbRects.forEach((r, i) => { r.setAttribute("y", MB_BASE[i][0]); r.setAttribute("height", MB_BASE[i][1]); }); }
+
+  // ───── 流程 ─────
+  function startListening() {
+    if (phase === "picker") return;
+    clearAll(); cancelAnimationFrame(raf);
+    phase = "listening"; holdStart = performance.now();
+    resetBall();
+    lbl.textContent = "正在听"; hint.textContent = "松开语音键结束"; fbar.style.setProperty("--c", "var(--accent)"); fitWidth();
+    show();
+    t0 = 0; level = 0; nextSyll = 0;
+    raf = requestAnimationFrame(listenFrame);
+    log("AUDIO_START · 正在听");
+  }
+  function stopListening() {
+    if (phase !== "listening") return;
+    cancelAnimationFrame(raf); menubarRest(); bars.style.opacity = 1;
+    const held = (performance.now() - holdStart) / k;
+    if (held < 300) return notice("没有听到内容", "已忽略", `按住 ${Math.round(held)} ms，短于 300 ms，按误触处理`);
+    phase = "transcribing";
+    log("AUDIO_STOP · 签名动作 420 ms");
+    // 签名动作
+    if (reduce()) {
+      barEls.forEach(r => { r.style.transition = `opacity ${180 * k}ms`; r.style.opacity = 0; });
+      arc.style.transition = `opacity ${180 * k}ms`; arc.style.opacity = 1; arc.style.strokeDasharray = `${C * .28} ${C}`;
+      bg.style.fill = "color-mix(in srgb, var(--accent) 18%, transparent)";
+    } else {
+      bars.classList.add("conv");
+      barEls.forEach((r, i) => { r.style.transition = ""; r.style.transform = `translateX(${[6.3, 0, -6.3][i]}px) scaleY(.16)`; r.style.opacity = 0; });
+      bg.style.fill = "color-mix(in srgb, var(--accent) 18%, transparent)";
+      later(180, () => { arc.style.transition = ""; arc.style.opacity = 1; arc.style.strokeDasharray = `${C * .28} ${C}`; arcg.classList.add("spin"); });
+    }
+    setText("正在转写", "可以说下一句", "var(--accent)");
+    later(1300, () => $("rewrite").checked ? polishing() : outcome());
+  }
+  function polishing() {
+    phase = "polishing"; log("改写中");
+    bg.style.fill = "var(--accent)"; arc.setAttribute("stroke", "#fff");
+    spark.style.opacity = 1; spark.style.transform = "scale(1)";
+    setText("正在改写", "整理成正式语气", "var(--accent)");
+    later(1100, outcome);
+  }
+  function outcome() {
+    const v = document.querySelector("#outcome [aria-pressed=true]").dataset.v;
+    spark.style.opacity = 0; spark.style.transform = "scale(.4)";
+    if (v === "ok") {
+      phase = "inserted"; log("已输入 · 1.6 s 后收起");
+      arc.style.strokeDasharray = `${C} 0`;
+      later(reduce() ? 0 : 200, () => {
+        arcg.classList.remove("spin");
+        bg.style.fill = "var(--ok)"; arc.style.opacity = 0;
+        check.style.strokeDashoffset = 0;
+      });
+      setText("已输入", "文字已写入目标输入框", "var(--ok)");
+      later(1800, () => { hide(); phase = "idle"; });
+    } else {
+      phase = "attention"; log("需处理 · 演示 4 s 后收起（实际 30 s）");
+      arcg.classList.remove("spin"); arc.style.opacity = 0;
+      bg.style.fill = "color-mix(in srgb, var(--warn) 20%, transparent)";
+      gwarn.style.opacity = 1; gwarn.style.transform = "scale(1)";
+      setText("需处理", "焦点已改变，请选好输入框后点「输入到这里」", "var(--warn)");
+      $("mbdot").classList.add("on");
+      if (!reduce()) {
+        later(220, () => fwrap.animate([{ transform: "translateX(0)" }, { transform: "translateX(-4px)" }, { transform: "translateX(4px)" }, { transform: "translateX(-3px)" }, { transform: "translateX(2px)" }, { transform: "translateX(0)" }], { duration: 400 * k, easing: "ease-out", composite: "add" }));
+        beat.classList.remove("on"); void beat.getBBox(); beat.classList.add("on");
+      }
+      later(4000, () => { hide(); phase = "idle"; });
+    }
+  }
+  function notice(label, h, why) {
+    phase = "notice"; log(why || label);
+    arcg.classList.remove("spin"); arc.style.opacity = 0;
+    barEls.forEach(r => { r.style.transition = `opacity ${120 * k}ms`; r.style.opacity = 0; });
+    bg.style.fill = "color-mix(in srgb, var(--note) 20%, transparent)";
+    ginfo.style.opacity = 1; ginfo.style.transform = "scale(1)";
+    setText(label, h, "var(--note)");
+    show();
+    later(2000, () => { hide(); phase = "idle"; });
+  }
+
+  // ───── 模式选单 ─────
+  const MODES = ["原文直出", "转录整理", "正式书面", "简洁", "翻译为英文", "Vibe Coding"];
+  let hi = 1, pickerTimer = 0;
+  const picker = $("picker"), items = $("items"), hl = $("hl");
+  items.innerHTML = MODES.map((m, i) => `<div class="it" data-i="${i}"><span class="o"></span>${m}</div>`).join("");
+  const itEls = [...items.children];
+  function paintHi() { hl.style.top = `${8 + hi * 34}px`; itEls.forEach((e, i) => e.classList.toggle("on", i === hi)); }
+  function armPickerTimeout() { clearTimeout(pickerTimer); pickerTimer = setTimeout(() => closePicker("6 秒无操作，选单关闭"), 6000 * k); }
+  function openPicker() {
+    if (phase === "listening") return;
+    clearAll(); cancelAnimationFrame(raf);
+    phase = "picker"; log("菜单键 · 打开模式选单");
+    fbar.hidden = true; picker.hidden = false; paintHi();
+    visible = false; show();
+    if (!reduce()) {
+      picker.animate([{ height: "44px", borderRadius: "22px" }, { height: picker.scrollHeight + "px", borderRadius: "16px" }], { duration: 300 * k, easing: "cubic-bezier(.25,1.12,.4,1)" });
+      itEls.forEach((e, i) => e.animate([{ opacity: 0, transform: "translateY(4px)" }, { opacity: 1, transform: "none" }], { duration: 180 * k, delay: (60 + i * 20) * k, easing: "ease-out", fill: "backwards" }));
+    }
+    armPickerTimeout();
+  }
+  function closePicker(msg, then) {
+    if (phase !== "picker") return;
+    clearTimeout(pickerTimer);
+    log(msg);
+    const done = () => { picker.hidden = true; fbar.hidden = false; phase = "idle"; then ? then() : null; };
+    if (then) {
+      if (reduce()) return done();
+      const a = picker.animate([{ height: picker.scrollHeight + "px", borderRadius: "16px" }, { height: "44px", borderRadius: "22px" }], { duration: 260 * k, easing: "cubic-bezier(.4,0,.2,1)" });
+      a.onfinish = done;
+    } else { hide(); later(260, done); }
+  }
+  function movePicker(d) { if (phase !== "picker") return; hi = (hi + d + MODES.length) % MODES.length; paintHi(); armPickerTimeout(); log(`高亮：${MODES[hi]}`); }
+  function confirmPicker() {
+    if (phase !== "picker") return;
+    itEls[hi].classList.remove("flash"); void itEls[hi].offsetWidth; itEls[hi].classList.add("flash");
+    setTimeout(() => closePicker(`确认 · 已切换到${MODES[hi]}`, () => { resetBall(); visible = true; notice(`已切换：${MODES[hi]}`, "", `确认 · 已切换到${MODES[hi]}`); }), 160 * k);
+  }
+
+  // ───── 控件 ─────
+  const hold = $("hold");
+  hold.addEventListener("pointerdown", e => { hold.setPointerCapture(e.pointerId); hold.classList.add("down"); startListening(); });
+  const up = () => { hold.classList.remove("down"); stopListening(); };
+  hold.addEventListener("pointerup", up); hold.addEventListener("pointercancel", up);
+  root.tabIndex = -1;
+  root.addEventListener("keydown", e => { if (e.code === "Space" && !e.repeat && e.target.tagName !== "INPUT") { e.preventDefault(); hold.classList.add("down"); startListening(); } });
+  root.addEventListener("keyup", e => { if (e.code === "Space") { e.preventDefault(); up(); } });
+  $("kmenu").onclick = openPicker; $("kup").onclick = () => movePicker(-1); $("kdn").onclick = () => movePicker(1);
+  $("kok").onclick = confirmPicker; $("kback").onclick = () => closePicker("返回键 · 关闭选单");
+  const segs = (id, fn) => document.querySelectorAll(`#${id} button`).forEach(b => b.addEventListener("click", () => {
+    document.querySelectorAll(`#${id} button`).forEach(x => x.setAttribute("aria-pressed", String(x === b))); fn(b.dataset.v);
+  }));
+  segs("outcome", () => {});
+  segs("speed", v => { k = Number(v); document.documentElement.style.setProperty("--k", k); });
+  $("rm").addEventListener("change", () => root.classList.toggle("rm", $("rm").checked));
+
+  // 静止首帧：显示一条正在听的浮条，页面打开即可见
+  resetBall(); barEls.forEach((r, i) => r.style.transform = `scaleY(${[.45, .9, .6][i]})`);
+  fitWidth(); fwrap.style.opacity = 1; visible = true;
+
+  // ───── 侧栏小样 ─────
+  const PANES = ["识别", "改写", "按键映射", "遥控器", "外观", "关于"];
+  const side = $("side"), pill = $("pill");
+  let sel = 0;
+  PANES.forEach((p, i) => { const b = document.createElement("button"); b.type = "button"; b.textContent = p; b.onclick = () => { sel = i; paintSide(); }; side.appendChild(b); });
+  function paintSide() { pill.style.top = `${6 + sel * 30}px`; [...side.querySelectorAll("button")].forEach((b, i) => { b.classList.toggle("on", i === sel); b.setAttribute("aria-current", i === sel ? "page" : "false"); }); }
+  paintSide();
+
+  const THEMES = [["潮汐青", "#0C98A8"], ["靛蓝", "#4F5BD5"], ["珊瑚", "#E0503A"], ["兰紫", "#8A4FD6"], ["玫瑰", "#D2457A"], ["石墨", "#2E3A40"]];
+  const sw = $("sw"), swprev = $("swprev");
+  THEMES.forEach(([n, c], i) => { const b = document.createElement("button"); b.type = "button"; b.style.background = c; b.setAttribute("aria-label", n); b.setAttribute("aria-pressed", String(i === 0));
+    b.onclick = () => { sw.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", String(x === b))); swprev.style.backgroundColor = c; swprev.textContent = `正在听 · ${n}`; }; sw.appendChild(b); });
+  swprev.style.backgroundColor = THEMES[0][1];
+  const rec = $("rec");
+  rec.onclick = () => { const on = !rec.classList.contains("live"); rec.classList.toggle("live", on); rec.textContent = on ? "按下快捷键…（Esc 取消）" : "点击录制"; };
+  rec.addEventListener("keydown", e => { if (e.key === "Escape" && rec.classList.contains("live")) { rec.classList.remove("live"); rec.textContent = "点击录制"; } });
+
+  // ───── 时序图（按比例：1 ms = 1.4 px）─────
+  const S = 1.4, X0 = 170, W = X0 + 460 * S + 20;
+  const tracks = [
+    ["声波收拢到中心", 0, 200, "var(--accent)"],
+    ["声波淡出", 140, 260, "var(--accent)"],
+    ["小球底色 → 主题色浅底", 0, 180, "var(--note)"],
+    ["文字淡出 / 淡入", 0, 230, "var(--note)"],
+    ["宽度弹簧伸缩", 0, 300, "var(--note)"],
+    ["圆弧画入（0 → 28%）", 180, 420, "var(--accent)"],
+    ["圆弧开始转圈", 180, 460, "var(--accent-strong)"],
+  ];
+  const rowH = 30, top = 34, H = top + tracks.length * rowH + 16;
+  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="签名动作时序图，0 到 420 毫秒">`;
+  for (let ms = 0; ms <= 400; ms += 100) {
+    const x = X0 + ms * S;
+    svg += `<line x1="${x}" y1="${top - 8}" x2="${x}" y2="${H - 10}" stroke="var(--line)"/><text x="${x}" y="${top - 14}" font-size="11" text-anchor="middle" fill="var(--muted)" font-family="JetBrains Mono, monospace">${ms} ms</text>`;
+  }
+  tracks.forEach(([name, a, b, c], i) => {
+    const y = top + i * rowH;
+    svg += `<text x="0" y="${y + 17}" font-size="12.5" fill="var(--fg)" font-family="-apple-system, PingFang SC, sans-serif">${name}</text>`;
+    const open = name.includes("转圈");
+    svg += `<rect x="${X0 + a * S}" y="${y + 6}" width="${(b - a) * S}" height="16" rx="8" fill="${c}" opacity="${open ? .35 : .85}"/>`;
+    if (open) svg += `<text x="${X0 + b * S + 6}" y="${y + 18}" font-size="11" fill="var(--muted)" font-family="JetBrains Mono, monospace">持续</text>`;
+  });
+  svg += `</svg>`;
+  $("tl").innerHTML = svg + `<p class="cap">以松手（AUDIO_STOP）为 0。声波收拢与圆弧画入重叠 20 ms，眼睛看到的是一个连续动作而不是两段。</p>`;
+})();
+</script>
