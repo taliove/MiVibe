@@ -36,6 +36,10 @@ public enum Config {
         public var rewrite: RewriteConfig?
         /// 关键词纠正对照表（识别与改写共用）。
         public var keywords: [KeywordEntry]?
+        /// 品牌主题（ThemeID rawValue）。nil = 潮汐青。
+        public var theme: String?
+        /// 外观模式（AppearanceMode rawValue）。nil = 跟随系统。
+        public var appearance: String?
 
         public init(
             doubaoAPIKey: String? = nil,
@@ -45,7 +49,9 @@ public enum Config {
             asrProvider: String? = nil,
             localModel: String? = nil,
             rewrite: RewriteConfig? = nil,
-            keywords: [KeywordEntry]? = nil
+            keywords: [KeywordEntry]? = nil,
+            theme: String? = nil,
+            appearance: String? = nil
         ) {
             self.doubaoAPIKey = doubaoAPIKey
             self.enableNonstream = enableNonstream
@@ -55,6 +61,8 @@ public enum Config {
             self.localModel = localModel
             self.rewrite = rewrite
             self.keywords = keywords
+            self.theme = theme
+            self.appearance = appearance
         }
 
         public var effectiveKeyTakeover: Bool { keyTakeover ?? true }
@@ -62,6 +70,9 @@ public enum Config {
         public var effectiveASRProvider: ASREngine { ASREngine(rawValue: asrProvider ?? "") ?? .doubao }
         public var effectiveRewrite: RewriteConfig { rewrite ?? RewriteConfig() }
         public var effectiveKeywords: [KeywordEntry] { keywords ?? [] }
+        /// 未知字符串回落默认主题，绝不让一个坏值毁掉整份配置。
+        public var effectiveTheme: ThemeID { ThemeID(rawValue: theme ?? "") ?? .tide }
+        public var effectiveAppearance: AppearanceMode { AppearanceMode(rawValue: appearance ?? "") ?? .system }
     }
 
     /// 读取配置（不存在时返回默认值）。

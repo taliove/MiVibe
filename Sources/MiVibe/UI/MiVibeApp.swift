@@ -37,6 +37,9 @@ struct MiVibeApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     @MainActor static let shared = AppDelegate()
 
+    /// 主题与外观的唯一入口。启动即创建（早于浮条），颜色扩展靠它维护当前主题。
+    @MainActor let themeStore = ThemeStore()
+
     // 浮条只在 attach 时（主线程）创建，避免主 actor 隔离的默认值出现在
     // nonisolated 的 NSObject 初始化路径上。
     private var panel: FloatPanelController?
@@ -110,10 +113,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func runFloatDemo() {
         let panel = FloatPanelController()
         demoPanel = panel
-        // MIVIBE_FLOAT_DEMO=dark / light 强制外观，其他值跟随系统。
+        // MIVIBE_FLOAT_DEMO=dark / light 强制外观（仅本次运行，不落盘），其他值跟随系统。
         switch ProcessInfo.processInfo.environment["MIVIBE_FLOAT_DEMO"] {
-        case "dark": panel.debugForceAppearance(.darkAqua)
-        case "light": panel.debugForceAppearance(.aqua)
+        case "dark": themeStore.set(appearance: .dark, persist: false)
+        case "light": themeStore.set(appearance: .light, persist: false)
         default: break
         }
         let steps: [(FloatState, String)] = [

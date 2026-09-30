@@ -16,11 +16,12 @@ enum LinkState: String, CaseIterable, Identifiable {
         }
     }
 
-    var color: Color {
+    /// 链路状态用固定语义色：已连接=成功，已配对未连接=中性提示，未配对=需要注意。
+    @MainActor var color: Color {
         switch self {
-        case .unpaired: return .orange
-        case .pairedOffline: return .secondary
-        case .connected: return .green
+        case .unpaired: return .brandAttention
+        case .pairedOffline: return .brandNotice
+        case .connected: return .brandSuccess
         }
     }
 }
@@ -54,14 +55,13 @@ enum FloatState: String, CaseIterable, Identifiable {
         }
     }
 
-    var color: Color {
+    /// 进行中状态用主题色（随用户主题变化），结果状态用固定语义色（epic 颜色规则）。
+    @MainActor var color: Color {
         switch self {
-        case .listening: return Color(red: 0.09, green: 0.47, blue: 0.94)
-        case .transcribing: return Color(red: 0.44, green: 0.31, blue: 0.86)
-        case .polishing: return Color(red: 0.56, green: 0.36, blue: 0.96)
-        case .inserted: return Color(red: 0.03, green: 0.55, blue: 0.38)
-        case .notice: return Color(red: 0.45, green: 0.47, blue: 0.52)
-        case .attention: return Color(red: 0.78, green: 0.42, blue: 0.0)
+        case .listening, .transcribing, .polishing: return .brandAccent
+        case .inserted: return .brandSuccess
+        case .notice: return .brandNotice
+        case .attention: return .brandAttention
         }
     }
 }

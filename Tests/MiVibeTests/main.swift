@@ -17,5 +17,6 @@ KeywordCorrectionTests.run()
 PendingStoreTests.run()
 TakeoverFailureTests.run()
 RemoteKeyRemapTests.run()
+ThemeTests.run()
 
 Harness.finish()
