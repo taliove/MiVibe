@@ -209,6 +209,13 @@ extension SettingsView {
                     }
                 }
             }
+            RowDivider()
+            SettingsRow(icon: "keyboard", title: "按键提示",
+                        subtitle: "按键时在屏幕中央显示键名与执行结果") {
+                Toggle("", isOn: $coordinator.keyHints)
+                    .labelsHidden()
+                    .tint(Color.brandAccent)
+            }
         }
     }
 }

@@ -86,6 +86,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // 浮条只在 attach 时（主线程）创建，避免主 actor 隔离的默认值出现在
     // nonisolated 的 NSObject 初始化路径上。
     private var panel: FloatPanelController?
+    /// 按键提示面板（屏幕中央）。与浮条同样由 AppDelegate 持有，不依赖菜单弹层。
+    private var keyHintPanel: KeyHintPanelController?
     private var coordinator: Coordinator?
     private var cancellable: AnyCancellable?
     /// 设置窗口（NSToolbar 分页）。懒创建，关闭不销毁。
@@ -219,6 +221,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         run(0)
     }
 
+    @MainActor private var demoKeyHint: KeyHintPanelController?
+
+    @MainActor
+    private func runKeyHintDemo() {
+        let panel = KeyHintPanelController()
+        demoKeyHint = panel
+        let interval = Double(ProcessInfo.processInfo.environment["MIVIBE_KEYHINT_DEMO_INTERVAL"] ?? "") ?? 2.0
+        let samples = [
+            KeyHint(title: "确认", detail: "⌘↩"),
+            KeyHint(title: "菜单", detail: "模式选单"),
+            KeyHint(title: "返回", detail: "Esc"),
+            KeyHint(title: "返回", detail: KeyHint.cancelText),
+            KeyHint(title: "确认", detail: KeyHint.systemHandledText),
+        ]
+        // 单次按键：每个样例之间留足时间让提示淡出。
+        var script: [(Double, KeyHint)] = samples.map { (interval, $0) }
+        // 连发：按住 ↓ 约 1 秒（每 80 ms 一次），提示应原地停留而不重播入场。
+        let hold = KeyHint(title: "↓", detail: KeyHint.passthroughText)
+        script.append((interval, hold))
+        script += Array(repeating: (0.08, hold), count: 12)
+        func run(_ index: Int) {
+            guard index < script.count else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + script[index].0) {
+                MainActor.assumeIsolated { panel.show(script[index].1) }
+                run(index + 1)
+            }
+        }
+        run(0)
+    }
+
     @MainActor private var popoverPreview: NSWindow?
 
     @MainActor
@@ -250,6 +282,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @MainActor
     func attach(_ coordinator: Coordinator, menuBarDriver: MenuBarIconDriver? = nil) {
         #if DEBUG
+        // 开发走查：MIVIBE_KEYHINT_DEMO=1 只轮播按键提示（含一段连发），不挂协调器。
+        if ProcessInfo.processInfo.environment["MIVIBE_KEYHINT_DEMO"] != nil {
+            if demoKeyHint == nil { runKeyHintDemo() }
+            return
+        }
         if ProcessInfo.processInfo.environment["MIVIBE_FLOAT_DEMO"] != nil {
             if demoPanel == nil { runFloatDemo() }
             return
@@ -276,6 +313,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             menuBarDriver?.push(level: level)
         }
         coordinator.onPickerConfirmFlash = { [weak panel] in panel?.flashPickerConfirm() }
+        let keyHintPanel = KeyHintPanelController()
+        self.keyHintPanel = keyHintPanel
+        coordinator.onKeyHint = { [weak keyHintPanel] hint in keyHintPanel?.show(hint) }
         installTerminationSignalHandlers()
         coordinator.start()
 

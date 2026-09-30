@@ -33,6 +33,9 @@ public enum MotionTiming {
     /// 需处理：出现后停留这么久再收起。
     public static let attentionHideDelay: Double = 30.0
 
+    /// 按键提示：最后一次按键后停留这么久再淡出（连发时每次按键重新计时）。
+    public static let keyHintHideDelay: Double = 0.8
+
     /// 对勾描线时长（`Motion.draw` 对应的时间值）。
     public static let drawDuration: Double = 0.35
     /// 已输入时圆弧合拢成整圈的时长。

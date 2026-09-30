@@ -11,4 +11,11 @@ public enum RemoteAction: String, Codable, Sendable, CaseIterable {
         case .openModePicker: return "改写模式选单"
         }
     }
+
+    /// 按键提示里的短名（屏幕中央一闪而过，越短越好认），如「菜单 → 模式选单」。
+    public var hintName: String {
+        switch self {
+        case .openModePicker: return "模式选单"
+        }
+    }
 }

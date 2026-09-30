@@ -29,6 +29,8 @@ final class Coordinator: ObservableObject {
     /// 接管是否真的生效（遥控器重映射在位）。用户开着开关但接管失败（缺输入监控 /
     /// 重映射被拒 / 遥控器未连接）时两者不一致——设置页据此显示"未生效"并提供重试入口。
     @Published private(set) var keyTakeoverActive = false
+    /// 按键提示开关（见 `Coordinator+KeyHint.swift`），只影响显示；改动即写盘。
+    @Published var keyHints: Bool { didSet { if keyHints != oldValue { persist() } } }
 
     /// 最近一次接管失败的原因（未生效时设置页据此说明原因、决定是否给重试入口）。
     @Published private(set) var takeoverFailure: TakeoverFailure?
@@ -116,6 +118,7 @@ final class Coordinator: ObservableObject {
         let config = Config.load()
         keyMap = config.effectiveKeyMap.normalized()
         keyTakeover = config.effectiveKeyTakeover
+        keyHints = config.effectiveKeyHints
         asrEngine = config.effectiveASRProvider
         localModelID = config.localModel
         rewrite = config.effectiveRewrite
@@ -263,6 +266,8 @@ final class Coordinator: ObservableObject {
                 // 仅监听：原生按键由系统自己处理，这里只做返回键取消（SPEC §6）。
                 // 语音键本身不在此处开录音——音频受物理门控，一律由设备自发的
                 // AUDIO_START 驱动。
+                emitKeyHint(key, isDown: isDown, isRepeat: isRepeat,
+                            route: .listenOnly(hasActiveItem: queue.newestActiveID != nil))
                 guard isDown, !isRepeat, key == .back else { return }
                 cancelNewestActive()
             }
@@ -275,11 +280,13 @@ final class Coordinator: ObservableObject {
         // 所以这里拿到的就是用户正在输入的那个应用。
         let bundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
         let mapping = keyMap.mapping(forBundleID: bundleID)
-        switch KeyRouter.disposition(
+        let disposition = KeyRouter.disposition(
             for: key, isDown: isDown, isRepeat: isRepeat,
             mapping: mapping, hasActiveItem: queue.newestActiveID != nil,
             modePickerOpen: picker != nil
-        ) {
+        )
+        emitKeyHint(key, isDown: isDown, isRepeat: isRepeat, route: .takenOver(disposition))
+        switch disposition {
         case .cancelNewestActive:
             cancelNewestActive()
         case .synthesize(let shortcut):
@@ -366,6 +373,8 @@ final class Coordinator: ObservableObject {
     /// 确认闪亮的外推口（epic #1 子任务 F）：AppDelegate 把它接到浮条的
     /// `flashPickerConfirm()`，解耦方向与 `onAudioLevel` 一致。
     var onPickerConfirmFlash: (() -> Void)?
+    /// 按键提示外推口：AppDelegate 接到 `KeyHintPanelController.show(_:)`。
+    var onKeyHint: ((KeyHint) -> Void)?
 
     func closePicker() {
         picker = nil
@@ -603,6 +612,7 @@ final class Coordinator: ObservableObject {
     private func persist() {
         var config = Config.load()
         config.keyTakeover = keyTakeover
+        config.keyHints = keyHints
         config.keyMap = keyMap
         config.asrProvider = asrEngine.rawValue
         config.localModel = localModelID
