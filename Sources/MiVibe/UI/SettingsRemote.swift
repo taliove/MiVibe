@@ -12,13 +12,21 @@ extension SettingsView {
 
             SettingsGroup(title: "连接",
                           footer: "未配对时按遥控器说明书进入配对状态，再到系统蓝牙设置中选择「小米蓝牙语音遥控器」。") {
+                // BRAND-MARK: replace with BrandGlyph after #3 merges
                 SettingsRow(icon: coordinator.link.icon, iconColor: coordinator.link.color,
                             title: "连接状态", subtitle: coordinator.link.rawValue)
                 RowDivider()
                 SettingsRow(icon: "antenna.radiowaves.left.and.right",
                             title: "系统蓝牙", subtitle: "配对与回连在系统侧完成") {
-                    Button("打开蓝牙设置…") { Permissions.openBluetoothSettings() }
-                        .controlSize(.small)
+                    // 未配对时这是用户最可能的下一步，给主按钮样式。
+                    if coordinator.link == .unpaired {
+                        Button("打开蓝牙设置…") { Permissions.openBluetoothSettings() }
+                            .controlSize(.small)
+                            .buttonStyle(.borderedProminent)
+                    } else {
+                        Button("打开蓝牙设置…") { Permissions.openBluetoothSettings() }
+                            .controlSize(.small)
+                    }
                 }
             }
 
@@ -92,8 +100,8 @@ extension SettingsView {
         HStack(alignment: .top, spacing: Spacing.intra) {
             Image(systemName: light == .ok ? "checkmark.circle.fill"
                   : (light == .pending ? "circle.dotted" : "xmark.circle.fill"))
-                .foregroundStyle(light == .ok ? Color.green
-                                 : (light == .pending ? Color.secondary : Color.red))
+                .foregroundStyle(light == .ok ? Color.brandSuccess
+                                 : (light == .pending ? Color.secondary : Color.brandError))
                 .frame(width: 20)
                 .padding(.top, 1)
             VStack(alignment: .leading, spacing: 2) {
@@ -109,7 +117,7 @@ extension SettingsView {
             if light != .ok {
                 Text(light == .pending ? pendingText : "未通过")
                     .font(.caption)
-                    .foregroundStyle(light == .pending ? Color.secondary : Color.orange)
+                    .foregroundStyle(light == .pending ? Color.secondary : Color.brandAttention)
             }
         }
         .padding(.horizontal, Spacing.rowH)
@@ -118,7 +126,7 @@ extension SettingsView {
 
     func permissionRow(ok: Bool, title: String, need: String) -> some View {
         SettingsRow(icon: ok ? "checkmark.circle.fill" : "exclamationmark.triangle.fill",
-                    iconColor: ok ? Color.green : Color.orange,
+                    iconColor: ok ? Color.brandSuccess : Color.brandAttention,
                     title: title, subtitle: ok ? "已授权" : "未授权（\(need)）")
     }
 
@@ -171,7 +179,7 @@ extension SettingsView {
             RowDivider()
             SettingsRow(icon: inputMonitoringGranted
                         ? "checkmark.circle.fill" : "exclamationmark.triangle.fill",
-                        iconColor: inputMonitoringGranted ? Color.green : Color.orange,
+                        iconColor: inputMonitoringGranted ? Color.brandSuccess : Color.brandAttention,
                         title: "输入监控",
                         subtitle: inputMonitoringGranted ? "已授权" : "未授权") {
                 if !inputMonitoringGranted {
@@ -183,7 +191,7 @@ extension SettingsView {
                 RowDivider()
                 SettingsRow(icon: coordinator.keyTakeoverActive
                             ? "checkmark.circle.fill" : "exclamationmark.triangle.fill",
-                            iconColor: coordinator.keyTakeoverActive ? Color.green : Color.orange,
+                            iconColor: coordinator.keyTakeoverActive ? Color.brandSuccess : Color.brandAttention,
                             title: "接管状态",
                             subtitle: takeoverStatusText) {
                     if !coordinator.keyTakeoverActive {

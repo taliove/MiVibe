@@ -47,9 +47,9 @@ struct KeyMappingSelectedCard: View {
         HStack(spacing: Spacing.intra) {
             Text(Self.badge(for: button))
                 .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.brandOnAccentFill)
                 .frame(width: 30, height: 30)
-                .background(Color.accentColor)
+                .background(Color.brandAccentFill)
                 .clipShape(RoundedRectangle(cornerRadius: Radius.badge))
             VStack(alignment: .leading, spacing: 1) {
                 Text("\(button.displayName)键").font(.headline)
@@ -166,7 +166,7 @@ struct KeyMappingSelectedCard: View {
         let defaultMapping = coordinator.keyMap.defaultMapping
         let inheritedText = defaultMapping[action: button].map { "动作：\($0.displayName)" }
             ?? defaultMapping[button]?.display ?? ""
-        SettingsRow(icon: "arrow.triangle.branch", iconColor: .gray,
+        SettingsRow(icon: "arrow.triangle.branch", iconColor: .brandNotice,
                     title: "继承自默认：\(inheritedText)",
                     subtitle: "该应用没有自己的绑定，跟随默认映射") {
             HStack(spacing: 8) {

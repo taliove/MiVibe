@@ -150,7 +150,7 @@ struct KeyMappingPage: View {
         let scopeName = undo.scope.map { AppIdentity.name(for: $0) } ?? "默认（所有应用）"
         return NoticeBanner(icon: "arrow.uturn.backward.circle.fill",
                             text: "已套用「\(undo.presetName)」 · 作用范围：\(scopeName)",
-                            actionTitle: "撤销") { coordinator.undoPresetApply() }
+                            actionTitle: "撤销", style: .brand) { coordinator.undoPresetApply() }
     }
 }
 

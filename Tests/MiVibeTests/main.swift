@@ -20,5 +20,7 @@ RemoteKeyRemapTests.run()
 ThemeTests.run()
 BrandMarkTests.run()
 QueueDotColorTests.run()
+SettingsPaneTests.run()
+AppearancePaneConfigTests.run()
 
 Harness.finish()

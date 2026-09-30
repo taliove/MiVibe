@@ -174,7 +174,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func showSettings(pane: SettingsPane? = nil) {
         guard let coordinator else { return }
         if settingsController == nil {
-            settingsController = SettingsWindowController(coordinator: coordinator)
+            settingsController = SettingsWindowController(coordinator: coordinator, themeStore: themeStore)
         }
         settingsController?.show(pane: pane)
         NSApp.activate(ignoringOtherApps: true)

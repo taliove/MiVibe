@@ -34,7 +34,7 @@ struct SettingsGroup<Content: View>: View {
 /// 卡片内的标准行：图标 + 主标题（可选副标题）居左，控件居右。
 struct SettingsRow<Trailing: View>: View {
     var icon: String
-    var iconColor: Color = .accentColor
+    var iconColor: Color = .brandAccent
     var title: String
     var subtitle: String? = nil
     @ViewBuilder var trailing: Trailing
@@ -64,7 +64,7 @@ struct SettingsRow<Trailing: View>: View {
 
 extension SettingsRow where Trailing == EmptyView {
     /// 纯展示行（状态、说明），无右侧控件。
-    init(icon: String, iconColor: Color = .accentColor, title: String, subtitle: String? = nil) {
+    init(icon: String, iconColor: Color = .brandAccent, title: String, subtitle: String? = nil) {
         self.init(icon: icon, iconColor: iconColor, title: title, subtitle: subtitle) { EmptyView() }
     }
 }
@@ -88,17 +88,27 @@ struct RowDivider: View {
     }
 }
 
-/// 页面顶部的提示横幅：橙色浅底 + 图标 + 一行说明 + 右侧一个操作按钮。
+/// 页面顶部的提示横幅：图标 + 一行说明 + 右侧一个操作按钮。
+/// 默认 `attention` 样式（需要注意：琥珀图标 + 琥珀 14% 浅底）；
+/// `brand` 样式（主题着色底 + 主题图标）用于预设撤销这类「刚发生的操作」提示。
 struct NoticeBanner: View {
+    enum Style {
+        /// 需要注意（默认）：琥珀图标 + 琥珀 14% 浅底。
+        case attention
+        /// 品牌提示：主题着色底 + 主题图标。
+        case brand
+    }
+
     let icon: String
     let text: String
     let actionTitle: String
+    var style: Style = .attention
     let action: () -> Void
 
     var body: some View {
         HStack(spacing: Spacing.intra) {
             Image(systemName: icon)
-                .foregroundStyle(.orange)
+                .foregroundStyle(iconColor)
             Text(text).font(.callout)
             Spacer()
             Button(actionTitle, action: action)
@@ -106,7 +116,21 @@ struct NoticeBanner: View {
         }
         .padding(.horizontal, Spacing.rowH)
         .padding(.vertical, Spacing.rowV)
-        .background(Color.orange.opacity(0.12),
+        .background(background,
                     in: RoundedRectangle(cornerRadius: Radius.small))
+    }
+
+    private var iconColor: Color {
+        switch style {
+        case .attention: return .brandAttention
+        case .brand: return .brandAccent
+        }
+    }
+
+    private var background: Color {
+        switch style {
+        case .attention: return Color.brandAttention.opacity(0.14)
+        case .brand: return Color.brandAccentSoft
+        }
     }
 }

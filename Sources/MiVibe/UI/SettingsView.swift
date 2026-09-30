@@ -1,33 +1,6 @@
 import MiVibeCore
 import SwiftUI
 
-/// 设置页分页（与设置窗口侧栏导航一一对应）。
-enum SettingsPane: String, CaseIterable, Identifiable {
-    case recognition, rewrite, keyMapping, remote, about
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .recognition: return "识别"
-        case .rewrite: return "改写"
-        case .keyMapping: return "按键映射"
-        case .remote: return "遥控器"
-        case .about: return "关于"
-        }
-    }
-
-    var icon: String {
-        switch self {
-        case .recognition: return "waveform"
-        case .rewrite: return "sparkles"
-        case .keyMapping: return "keyboard"
-        case .remote: return "av.remote"
-        case .about: return "info.circle"
-        }
-    }
-}
-
 /// 设置窗口侧栏当前选中页（窗口控制器持有，视图观察）。
 ///
 /// 内部维护一份前进 / 后退导航历史（`NavigationHistory`）：直接给 `pane` 赋值
@@ -79,8 +52,12 @@ final class SettingsPaneModel: ObservableObject {
 struct SettingsView: View {
     @ObservedObject var coordinator: Coordinator
     @ObservedObject var paneModel: SettingsPaneModel
+    @ObservedObject var themeStore: ThemeStore
     @State var apiKeyDraft = ""
     @State var saveResult: String?
+
+    /// 外观页「新」胶囊：窗口打开时读一次配置，打开过外观页即写入并隐藏。
+    @State var appearancePaneSeen = false
 
     /// 按键映射页的作用范围：nil = 默认表，否则是应用的 bundle identifier。
     @State var mappingScope: String?
@@ -127,13 +104,21 @@ struct SettingsView: View {
                 case .rewrite: rewriteTab
                 case .keyMapping: keyMappingTab
                 case .remote: remoteTab
+                case .appearance:
+                    SettingsAppearanceView(themeStore: themeStore)
                 case .about: aboutTab
                 }
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .id(paneModel.pane)
-        .onAppear { loadLLMDrafts() }
+        .tint(Color.brandAccent)
+        .onAppear {
+            loadLLMDrafts()
+            appearancePaneSeen = Config.load().appearancePaneSeen ?? false
+            markAppearancePaneSeenIfNeeded()
+        }
+        .onChange(of: paneModel.pane) { markAppearancePaneSeenIfNeeded() }
         .sheet(item: $modeEditorTarget) { target in
             CustomModeEditor(
                 draft: target.mode,
@@ -175,22 +160,104 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - 外观页「新」标记
+
+    /// 第一次打开外观页即写入配置（与 ThemeStore.persist 同一读—改—写模式），
+    /// 侧栏「新」胶囊随 `appearancePaneSeen` 状态隐藏。
+    private func markAppearancePaneSeenIfNeeded() {
+        guard paneModel.pane == .appearance, !appearancePaneSeen else { return }
+        appearancePaneSeen = true
+        // 侧栏收到通知即隐藏「新」胶囊（窗口控制器桥接侧栏 rootView）。
+        NotificationCenter.default.post(name: .settingsAppearancePaneSeen, object: nil)
+        do {
+            var cfg = Config.load()
+            cfg.appearancePaneSeen = true
+            try Config.save(cfg)
+        } catch {
+            print("外观页标记保存失败: \(error)")
+        }
+    }
+
     // MARK: - 关于
 
     private var aboutTab: some View {
         VStack(alignment: .leading, spacing: Spacing.section) {
-            SettingsGroup(title: "MiVibe",
+            heroCard
+
+            HStack(alignment: .top, spacing: Spacing.intra) {
+                stepCard(number: "01 · 按住", title: "按住语音键",
+                         detail: "光标放进任意输入框，按住遥控器上的语音键。")
+                stepCard(number: "02 · 说话", title: "正常说话",
+                         detail: "浮条显示正在听；想中途放弃，按返回键。")
+                stepCard(number: "03 · 松手", title: "文字写入",
+                         detail: "松开后自动转写并写入，不会替你按回车。")
+            }
+
+            SettingsGroup(title: "链接",
                           footer: "通用模式不会自动发送消息。终端场景尚未验证，不在兼容承诺内。") {
-                SettingsRow(icon: "app.badge", title: "版本") {
-                    Text("v\(Self.versionString)")
-                        .foregroundStyle(.secondary)
+                SettingsRow(icon: "curlybraces", title: "项目主页",
+                            subtitle: "github.com/taliove/mi-vibe") {
+                    Button("打开…") {
+                        NSWorkspace.shared.open(URL(string: "https://github.com/taliove/mi-vibe")!)
+                    }
+                    .controlSize(.small)
                 }
                 RowDivider()
-                SettingsRow(icon: "mic.fill", title: "用法",
-                            subtitle: "按住遥控器语音键说话，松开即写入当前输入框")
+                SettingsRow(icon: "doc.text", title: "发布说明",
+                            subtitle: "查看本版本的变化与安装说明") {
+                    Button("打开…") {
+                        NSWorkspace.shared.open(URL(string: "https://github.com/taliove/mi-vibe/releases/latest")!)
+                    }
+                    .controlSize(.small)
+                }
             }
         }
         .padding(Spacing.page)
+    }
+
+    /// 品牌头图：应用图标 + 字标 + 标语（后半句主题色）+ 版本。
+    private var heroCard: some View {
+        VStack(spacing: 6) {
+            Image(nsImage: NSApp.applicationIconImage)
+                .resizable()
+                .frame(width: 84, height: 84)
+                .shadow(color: .black.opacity(0.18), radius: 8, y: 8)
+            Text("MiVibe")
+                .font(.system(size: 26, weight: .bold, design: .rounded))
+                .padding(.top, 6)
+            // BRAND-MARK: replace with BrandGlyph after #3 merges
+            (Text("按住说话，") + Text("松手成文。").foregroundStyle(Color.brandAccent))
+                .font(.callout)
+            Text("版本 \(Self.versionString) · \(Self.archString)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 22)
+        .background(Color(nsColor: .controlBackgroundColor),
+                    in: RoundedRectangle(cornerRadius: Radius.card))
+        .overlay(RoundedRectangle(cornerRadius: Radius.card)
+            .stroke(Color(nsColor: .separatorColor).opacity(0.6), lineWidth: 1))
+    }
+
+    private func stepCard(number: String, title: String, detail: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(number)
+                .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                .foregroundStyle(Color.brandAccent)
+            Text(title)
+                .font(.callout.weight(.semibold))
+            Text(detail)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(Spacing.rowH)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(nsColor: .controlBackgroundColor),
+                    in: RoundedRectangle(cornerRadius: Radius.card))
+        .overlay(RoundedRectangle(cornerRadius: Radius.card)
+            .stroke(Color(nsColor: .separatorColor).opacity(0.6), lineWidth: 1))
     }
 
     /// 版本号读 bundle，不手写——手写的一定会过期。
@@ -198,6 +265,16 @@ struct SettingsView: View {
         let info = Bundle.main.infoDictionary
         let version = info?["CFBundleShortVersionString"] as? String ?? "?"
         let build = info?["CFBundleVersion"] as? String ?? "?"
-        return "\(version) (\(build))"
+        return "\(version)（\(build)）"
+    }
+
+    /// 运行架构：Apple Silicon 或 Intel。
+    private static var archString: String {
+        var sysinfo = utsname()
+        uname(&sysinfo)
+        let machine = withUnsafeBytes(of: &sysinfo.machine) { ptr in
+            String(cString: ptr.baseAddress!.assumingMemoryBound(to: CChar.self))
+        }
+        return machine.hasPrefix("arm64") ? "Apple Silicon" : "Intel"
     }
 }

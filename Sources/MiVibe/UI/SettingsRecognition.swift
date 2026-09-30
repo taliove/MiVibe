@@ -63,7 +63,7 @@ extension SettingsView {
                             coordinator.deleteKeyword(entry.id)
                         } label: {
                             Image(systemName: "minus.circle")
-                                .foregroundStyle(.red)
+                                .foregroundStyle(Color.brandError)
                         }
                         .buttonStyle(.plain)
                         .help("删除这条纠正")
@@ -86,6 +86,7 @@ extension SettingsView {
                         keywordToDraft = ""
                     }
                     .controlSize(.small)
+                    .buttonStyle(.borderedProminent)
                     .disabled(keywordFromDraft.trimmingCharacters(in: .whitespaces).isEmpty
                               || keywordToDraft.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
@@ -106,6 +107,7 @@ extension SettingsView {
                         .frame(width: 150)
                     Button("保存") { saveKey() }
                         .controlSize(.small)
+                        .buttonStyle(.borderedProminent)
                         .disabled(apiKeyDraft.isEmpty)
                 }
             }
@@ -183,8 +185,8 @@ private struct ModelRow: View {
                             .font(.caption2)
                             .padding(.horizontal, 5)
                             .padding(.vertical, 1)
-                            .background(Color.accentColor.opacity(0.15), in: Capsule())
-                            .foregroundStyle(Color.accentColor)
+                            .background(Color.brandAccentSoft, in: Capsule())
+                            .foregroundStyle(Color.brandAccent)
                     }
                 }
                 Text("\(model.speedNote) · \(model.qualityNote)")
@@ -211,8 +213,8 @@ private struct ModelRow: View {
 
     private var stateIconColor: Color {
         switch store.states[model.id] ?? .notDownloaded {
-        case .downloaded: return isActive ? Color.accentColor : Color.secondary
-        case .failed: return Color.red
+        case .downloaded: return isActive ? Color.brandAccent : Color.secondary
+        case .failed: return Color.brandError
         default: return Color.secondary
         }
     }
@@ -240,7 +242,7 @@ private struct ModelRow: View {
         case .failed(let message):
             Text(message)
                 .font(.caption)
-                .foregroundStyle(.red)
+                .foregroundStyle(Color.brandError)
                 .lineLimit(1)
             Button("重试") { store.download(model) }
                 .controlSize(.small)
