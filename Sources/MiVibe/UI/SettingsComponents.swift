@@ -33,6 +33,7 @@ struct SettingsGroup<Content: View>: View {
 
 /// 卡片内的标准行：图标 + 主标题（可选副标题）居左，控件居右。
 struct SettingsRow<Trailing: View>: View {
+    /// SF Symbol 名；传 `SettingsRow.brandMarkIcon` 时改画品牌标记（连接状态行用）。
     var icon: String
     var iconColor: Color = .brandAccent
     var title: String
@@ -41,9 +42,15 @@ struct SettingsRow<Trailing: View>: View {
 
     var body: some View {
         HStack(spacing: Spacing.intra) {
-            Image(systemName: icon)
-                .foregroundStyle(iconColor)
-                .frame(width: 20)
+            Group {
+                if icon == Self.brandMarkIcon {
+                    BrandGlyph().frame(width: 17, height: 17)
+                } else {
+                    Image(systemName: icon)
+                }
+            }
+            .foregroundStyle(iconColor)
+            .frame(width: 20)
             VStack(alignment: .leading, spacing: 1) {
                 Text(title).font(.body)
                 if let subtitle {
@@ -60,6 +67,11 @@ struct SettingsRow<Trailing: View>: View {
         .padding(.vertical, Spacing.rowV)
         .frame(minHeight: Spacing.rowMinHeight)
     }
+}
+
+extension SettingsRow {
+    /// 占位图标名：行首画 `BrandGlyph` 而不是 SF Symbol。
+    static var brandMarkIcon: String { "mivibe.brandmark" }
 }
 
 extension SettingsRow where Trailing == EmptyView {

@@ -12,8 +12,9 @@ extension SettingsView {
 
             SettingsGroup(title: "连接",
                           footer: "未配对时按遥控器说明书进入配对状态，再到系统蓝牙设置中选择「小米蓝牙语音遥控器」。") {
-                // BRAND-MARK: replace with BrandGlyph after #3 merges
-                SettingsRow(icon: coordinator.link.icon, iconColor: coordinator.link.color,
+                SettingsRow(icon: SettingsRow<EmptyView>.brandMarkIcon,
+                            iconColor: coordinator.link == .pairedOffline
+                                ? Color.brandNotice.opacity(0.6) : coordinator.link.color,
                             title: "连接状态", subtitle: coordinator.link.rawValue)
                 RowDivider()
                 SettingsRow(icon: "antenna.radiowaves.left.and.right",

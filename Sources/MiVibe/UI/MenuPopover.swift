@@ -74,9 +74,8 @@ struct MenuPopover: View {
         return ZStack {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(connected ? Color.brandAccentSoft : Color.brandAttention.opacity(0.16))
-            // BRAND-MARK: replace with BrandGlyph after #3 merges
-            Image(systemName: "waveform")
-                .font(.system(size: 13, weight: .semibold))
+            BrandGlyph()
+                .frame(width: 18, height: 18)
                 .foregroundStyle(connected ? Color.brandAccent : Color.brandAttention.opacity(0.45))
         }
         .frame(width: 28, height: 28)

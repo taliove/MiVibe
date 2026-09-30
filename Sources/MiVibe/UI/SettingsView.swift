@@ -225,7 +225,6 @@ struct SettingsView: View {
             Text("MiVibe")
                 .font(.system(size: 26, weight: .bold, design: .rounded))
                 .padding(.top, 6)
-            // BRAND-MARK: replace with BrandGlyph after #3 merges
             (Text("按住说话，") + Text("松手成文。").foregroundStyle(Color.brandAccent))
                 .font(.callout)
             Text("版本 \(Self.versionString) · \(Self.archString)")
