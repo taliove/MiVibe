@@ -18,5 +18,7 @@ PendingStoreTests.run()
 TakeoverFailureTests.run()
 RemoteKeyRemapTests.run()
 ThemeTests.run()
+SettingsPaneTests.run()
+AppearancePaneConfigTests.run()
 
 Harness.finish()

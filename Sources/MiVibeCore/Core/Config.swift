@@ -40,6 +40,8 @@ public enum Config {
         public var theme: String?
         /// 外观模式（AppearanceMode rawValue）。nil = 跟随系统。
         public var appearance: String?
+        /// 外观页是否已被打开过（nil/true 决定侧栏「新」胶囊是否显示）。
+        public var appearancePaneSeen: Bool?
 
         public init(
             doubaoAPIKey: String? = nil,
@@ -51,7 +53,8 @@ public enum Config {
             rewrite: RewriteConfig? = nil,
             keywords: [KeywordEntry]? = nil,
             theme: String? = nil,
-            appearance: String? = nil
+            appearance: String? = nil,
+            appearancePaneSeen: Bool? = nil
         ) {
             self.doubaoAPIKey = doubaoAPIKey
             self.enableNonstream = enableNonstream
@@ -63,6 +66,7 @@ public enum Config {
             self.keywords = keywords
             self.theme = theme
             self.appearance = appearance
+            self.appearancePaneSeen = appearancePaneSeen
         }
 
         public var effectiveKeyTakeover: Bool { keyTakeover ?? true }
