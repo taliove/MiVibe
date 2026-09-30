@@ -404,16 +404,21 @@ private struct AttentionBall: View {
     }
 
     /// 轻晃位移：0 → −4 → 4 → −3 → 2 → 0 pt。
-    private var reduceShakeOffset: CGFloat {
-        let x = shake
-        let offsets: [(Double, Double)] = [(0, 0), (0.2, -4), (0.45, 4), (0.65, -3), (0.85, 2), (1, 0)]
-        for i in 1..<offsets.count {
-            if x <= offsets[i].0 {
-                let (t0, v0) = offsets[i - 1]
-                let (t1, v1) = offsets[i]
-                let f = (x - t0) / (t1 - t0)
-                return CGFloat(v0 + (v1 - v0) * f)
-            }
+    private var reduceShakeOffset: CGFloat { AttentionShake.offset(shake) }
+}
+
+/// 「需处理」轻晃曲线：进度 0…1 → 横向位移 0 → −4 → 4 → −3 → 2 → 0 pt。
+/// 需处理球与整组浮条（第三条录音被拒绝）共用这一条曲线。
+enum AttentionShake {
+    private static let keyframes: [(Double, Double)] = [(0, 0), (0.2, -4), (0.45, 4), (0.65, -3), (0.85, 2), (1, 0)]
+
+    static func offset(_ progress: Double) -> CGFloat {
+        let x = min(1, max(0, progress))
+        for i in 1..<keyframes.count where x <= keyframes[i].0 {
+            let (t0, v0) = keyframes[i - 1]
+            let (t1, v1) = keyframes[i]
+            let f = (x - t0) / (t1 - t0)
+            return CGFloat(v0 + (v1 - v0) * f)
         }
         return 0
     }

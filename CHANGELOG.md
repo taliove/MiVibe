@@ -12,6 +12,7 @@ Each release has one section, Chinese first, English second. The release workflo
 - 新增安全漏洞私下报告渠道（SECURITY.md）。
 - 修复：几乎同时按下菜单键和返回键后，模式选单再也打不开（按菜单键无反应，按返回键时一闪而过）。
 - 新增按键提示：按下遥控器按键时在屏幕中央短暂显示键名与这一次的实际结果（如「确认 → ⌘↩」「菜单 → 模式选单」），可在「设置 → 遥控器」关闭。
+- 浮条跟随每条录音：连续说话时每句一条、上下叠放（新句在下），各自显示进度，已输入的那条单独收起；模式切换等提示单独一条；第三条录音被拒绝时已有浮条轻晃一下。
 
 ### What's New
 
@@ -19,6 +20,7 @@ Each release has one section, Chinese first, English second. The release workflo
 - A private channel for reporting security issues (SECURITY.md).
 - Fix: after pressing the menu and back keys almost together, the mode picker no longer opened (the menu key did nothing and the back key only flashed it).
 - Key hints: pressing a remote key briefly shows the key and what it actually did in the center of the screen (e.g. "Confirm → ⌘↩", "Menu → Mode picker"); turn it off in Settings → Remote.
+- One float bar per recording: when you speak several sentences in a row, each gets its own bar, stacked with the newest at the bottom and showing its own progress; an inserted bar collapses on its own; notices such as mode switches get a separate bar; a rejected third recording shakes the existing bars once.
 
 ## [0.4.0] - 2026-09-30
 

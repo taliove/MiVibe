@@ -24,5 +24,6 @@ SettingsPaneTests.run()
 AppearancePaneConfigTests.run()
 MotionTimingTests.run()
 KeyHintTests.run()
+FloatStackTests.run()
 
 Harness.finish()

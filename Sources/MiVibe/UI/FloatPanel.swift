@@ -8,12 +8,13 @@ import SwiftUI
 // 状态文案与音频电平分成两个 ObservableObject：电平每秒更新约 66 次，若和文字共用
 // 一个模型，横条上的两段文字会跟着球一起重绘。分开之后高频更新只碰球。
 
-/// 浮条的状态与文案（低频，只在事件发生时变化）。
+/// 浮条列表与选单（低频，只在事件发生时变化）。
 @MainActor
 final class FloatPanelModel: ObservableObject {
-    @Published var state: FloatState?
-    @Published var message: String = ""
-    /// 非 nil 时浮条渲染改写模式选单（优先级高于状态横条）。
+    /// 正在显示的浮条（提示条在上，录音条按录制先后、新句在下）。收起途中保留最后
+    /// 一组内容，淡出时不闪空白；orderOut 后才清空。
+    @Published var entries: [FloatEntry] = []
+    /// 非 nil 时浮条渲染改写模式选单（优先级高于浮条列表）。
     @Published var picker: Coordinator.ModePickerState?
     /// 横条宽度：默认 560，窄屏（含刘海两侧可用区变小）时收紧，不溢出屏幕。
     @Published var barWidth: CGFloat = 560
@@ -24,6 +25,8 @@ final class FloatPanelModel: ObservableObject {
     /// 确认键按下时闪亮的那一行的选单 id（Coordinator 在确认后关掉选单，
     /// 这里由选单视图自己在移除前消费一次）。
     @Published var confirmingPickerItemID: String?
+    /// 晃动代数：第三条录音被拒绝时 +1，整组浮条做一次「需处理」轻晃。
+    @Published var shakeGeneration: Int = 0
     /// 只观察不写入：主题切换时让浮条与选单立刻重绘（主题令牌经 BrandColorCurrent 读取，
     /// 值总是对的，但视图不观察 ThemeStore 就不会失效重算，见 Brand.swift 头注释）。
     let themeStore = AppDelegate.shared.themeStore
@@ -37,7 +40,7 @@ enum FloatBarPhase {
     case exiting
 }
 
-/// 实时音量电平 0…1（高频，约 66 Hz），只被球观察。
+/// 实时音量电平 0…1（高频，约 66 Hz），只被正在听那一条的球观察。
 @MainActor
 final class AudioLevelModel: ObservableObject {
     @Published var level: Double = 0
@@ -51,8 +54,8 @@ final class AudioLevelModel: ObservableObject {
 /// 原型阶段已实测（浮条轮播期间在 TextEdit 打字不被打断）。这是"松手直接输入"能
 /// 成立的前提：浮条一旦抢焦点，目标输入框就没了。**这三条是承重件，不要删。**
 ///
-/// 窗口本身在可见期间保持固定尺寸（取横条与当前选单高度的较大者），入场 / 退场 /
-/// 横条↔选单的过渡全部在 SwiftUI 内容里做——`NSWindow` 改尺寸会卡顿（性能预算，
+/// 窗口本身在可见期间保持固定尺寸（取「两条录音条 + 提示条」与当前选单高度的较大者），
+/// 入场 / 退场 / 条目增减 / 浮条↔选单的过渡全部在 SwiftUI 内容里做——`NSWindow` 改尺寸会卡顿（性能预算，
 /// motion-v1）。
 final class FloatPanel: NSPanel {
     init() {
@@ -93,10 +96,9 @@ final class FloatPanelController {
     private let model = FloatPanelModel()
     private let level = AudioLevelModel()
 
-    private var shown: FloatState?
-    private var shownMessage = ""
-    private var dismissed = false
-    private var autoHideTimer: Timer?
+    /// 协调器最近一次推来的条目（可能为空）；`model.entries` 是屏上正在画的那一组。
+    private var current: [FloatEntry] = []
+    private var lastShakeCount = 0
     private var orderOutTimer: Timer?
 
     init() {
@@ -109,48 +111,43 @@ final class FloatPanelController {
         level.level = value
     }
 
-    /// 更新状态并决定显示/隐藏。与 `Coordinator.float` 一一对应。
-    func update(state: FloatState?, message: String) {
-        // 同一状态重复上报（例如蓝牙连接状态也在变）时，若已经自动消失过就不要再
-        // 弹回来——否则已输入/需处理会反复闪现。
-        if state == shown, message == shownMessage, dismissed { return }
-
-        autoHideTimer?.invalidate()
-        autoHideTimer = nil
-        // 注意：这里不取消 orderOutTimer。空状态的例行刷新若掐掉退场收尾，面板会以
+    /// 更新浮条列表并决定显示/隐藏。与 `Coordinator.floats` 一一对应；自动收起的
+    /// 计时在 Core 的 `FloatStack`，到点时协调器推来的列表里就没有那一条了。
+    func update(entries: [FloatEntry]) {
+        // 协调器的例行刷新（蓝牙状态、按键回显也在变）：列表没变就什么都不做。
+        guard entries != current else { return }
+        current = entries
+        // 注意：这里不取消 orderOutTimer。空列表的例行刷新若掐掉退场收尾，面板会以
         // 透明（phase = hidden）状态一直挂着，下一次选单就在它上面「隐形」打开
         // （真机反馈：按菜单键不出选单，按返回才闪一下）。退场只由 showPanel 打断。
-        shown = state
-        shownMessage = message
-        dismissed = false
-        model.state = state
-        model.message = message
-
-        guard let state else {
+        guard !entries.isEmpty else {
+            // 最后一条收起：整块面板退场，退场期间保留最后一组内容，不闪空白。
             if model.picker == nil { hidePanel() }
             return
         }
-        // 选单正在淡出时来了新状态：放弃淡出，直接换成横条显示新状态。
+        // 选单正在淡出时来了新条目：放弃淡出，直接换成浮条列表。
         if pickerPendingClear {
             pickerPendingClear = false
             model.picker = nil
         }
-
-        showPanel()
-
-        // 已输入在对勾画完后停留 1.6 秒收起（净可见时长与旧版 2 秒相当）；
-        // 提示 2 秒收起；需处理要等用户动手，30 秒后收起（超时后菜单栏图标仍带
-        // 角标，内容不会丢）。听音/转写/改写期间不自动消失。
-        switch state {
-        case .inserted:
-            scheduleHide(after: MotionTiming.insertedHideDelay)
-        case .notice:
-            scheduleHide(after: MotionTiming.noticeHideDelay)
-        case .attention:
-            scheduleHide(after: MotionTiming.attentionHideDelay)
-        case .listening, .transcribing, .polishing:
-            break
+        let wasShowing = panel.isVisible && model.phase == .visible && !model.entries.isEmpty
+        if wasShowing {
+            // 已可见：条目增减走各自的过渡，留下的条原位不动。
+            withAnimation(Motion.standard) { model.entries = entries }
+        } else {
+            // 首次入场 / 收起途中反向回场：整组随面板一起入场，不再单独播条目过渡。
+            model.entries = entries
         }
+        showPanel()
+    }
+
+    /// 第三条录音被拒绝：已有浮条做一次「需处理」轻晃（计数只增不减）。
+    func update(shakeCount: Int) {
+        guard shakeCount != lastShakeCount else { return }
+        let grew = shakeCount > lastShakeCount
+        lastShakeCount = shakeCount
+        guard grew, !current.isEmpty, model.picker == nil else { return }
+        model.shakeGeneration += 1
     }
 
     /// 模式选单开合。打开时浮条切换为选单界面（自动隐藏计时交给 Coordinator：
@@ -164,13 +161,14 @@ final class FloatPanelController {
             showPanel()
         } else if !wasOpen || pickerPendingClear {
             return
-        } else if model.state == nil || dismissed {
-            // 返回键 / 6 秒无操作关闭：没有要接着显示的状态时，选单**原样淡出**。
-            // 先清 picker 会让退场那 0.24 s 里露出上一次的状态横条（真机反馈）。
+        } else if current.isEmpty {
+            // 返回键 / 6 秒无操作关闭：没有要接着显示的浮条时，选单**原样淡出**。
+            // 先清 picker 会让退场那 0.24 s 里露出上一次的浮条（真机反馈）。
             pickerPendingClear = true
             hidePanel()
         } else {
-            // 确认切换：选单收回成横条，横条显示新的提示。
+            // 确认切换或还有录音在进行：选单收回成当前的浮条列表。
+            model.entries = current
             model.picker = nil
         }
     }
@@ -223,11 +221,11 @@ final class FloatPanelController {
         }
     }
 
-    /// 面板固定尺寸：取横条与当前选单（按实际条目数）高度的较大者。
-    /// 可见期间不再 `setContentSize`，横条↔选单的过渡只动 SwiftUI 内容。
+    /// 面板固定尺寸：取「两条录音条 + 提示条」与当前选单（按实际条目数）高度的较大者。
+    /// 可见期间不再 `setContentSize`，条目增减与浮条↔选单的过渡只动 SwiftUI 内容。
     private func fitPanelSize() {
         let pickerHeight = model.picker.map { ModePickerView.height(itemCount: $0.items.count) }
-        let content = max(FloatSurface.barHeight, pickerHeight ?? 0)
+        let content = max(FloatBarView.stackHeight, pickerHeight ?? 0)
         let height = content + FloatSurface.shadowInset * 2
         let size = NSSize(width: model.barWidth, height: height)
         if panel.frame.size != size { panel.setContentSize(size) }
@@ -270,135 +268,14 @@ final class FloatPanelController {
             pickerPendingClear = false
             model.picker = nil
         }
+        // 屏上已空：清掉退场期间保留的旧内容，下一次入场只画新条目。
+        if current.isEmpty { model.entries = [] }
     }
 
     /// 横条宽度：默认 560，至少留出两侧 24pt 边距。
     static func fittingBarWidth() -> CGFloat {
         let visible = NSScreen.main?.visibleFrame.width ?? 560
         return min(560, max(320, visible - 48))
-    }
-
-    private func scheduleHide(after seconds: TimeInterval) {
-        autoHideTimer = Timer.scheduledTimer(withTimeInterval: seconds, repeats: false) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                self.dismissed = true
-                // 选单开着时不收：上一条提示的计时到点不能把用户正在用的选单关掉。
-                guard self.model.picker == nil else { return }
-                self.hidePanel()
-            }
-        }
-    }
-}
-
-// MARK: - 横条
-
-struct FloatBarView: View {
-    @ObservedObject var model: FloatPanelModel
-    @ObservedObject var level: AudioLevelModel
-    /// 主题观察：主题切换时浮条与模式选单立刻重绘（值取自 BrandColorCurrent，
-    /// 不观察则颜色对但不重算，见 Brand.swift 头注释）。
-    @ObservedObject private var themeStore: ThemeStore
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    private var state: FloatState { model.state ?? .listening }
-
-    init(model: FloatPanelModel, level: AudioLevelModel) {
-        self.model = model
-        self.level = level
-        self._themeStore = ObservedObject(wrappedValue: model.themeStore)
-    }
-
-    var body: some View {
-        // 面板本身按最大宽度开、完全透明且不接收鼠标；可见的条按内容收缩并居中，
-        // 短提示不再拖着一条大半空着的 560pt 横条。
-        Group {
-            if let picker = model.picker {
-                ModePickerView(
-                    picker: picker,
-                    width: min(model.barWidth, 360),
-                    generation: model.pickerGeneration,
-                    confirmingItemID: model.confirmingPickerItemID,
-                    reduceMotion: reduceMotion
-                )
-                .floatSurface(tint: nil, cornerRadius: FloatSurface.pickerCornerRadius)
-            } else {
-                HStack(spacing: 10) {
-                    StatusBall(state: state, level: level.level, reduceMotion: reduceMotion)
-                        .frame(width: 40, height: 40)
-
-                    Text(state.label)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.primary)
-                        .fixedSize()
-                        .id(state)
-                        .transition(reduceMotion ? .opacity : labelTransition)
-
-                    if !detail.isEmpty {
-                        Text(detail)
-                            .font(.system(size: 13))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                            .id(detail)
-                            .transition(reduceMotion ? .opacity : labelTransition)
-                    }
-                }
-                .padding(.leading, 4)
-                .padding(.trailing, 16)
-                .frame(height: FloatSurface.barHeight)
-                .frame(maxWidth: model.barWidth - FloatSurface.shadowInset * 2)
-                .fixedSize(horizontal: true, vertical: false)
-                .floatSurface(tint: state.color, cornerRadius: FloatSurface.cornerRadius)
-                .animation(Motion.quick, value: state)
-            }
-        }
-        // 入场 / 出场位移、缩放、透明度的目标值（减弱动态效果时只淡入淡出）。
-        // 驱动方式：相位写入总在 withAnimation 里（见控制器），这里只声明值。
-        .opacity(phaseOpacity)
-        .offset(y: phaseOffset)
-        .scaleEffect(phaseScale)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // 横条 ↔ 选单的内容切换用 standard（高度弹簧撑开 / 收回）。
-        // 注意：相位过渡的动画由控制器侧的 withAnimation 给出，不在这里声明——
-        // 否则状态的每次低频变化都会给 offset/opacity 套上弹簧。
-        .animation(Motion.standard, value: model.picker != nil)
-        .background(FloatUpdateCounter.probe())
-    }
-
-    private var phaseOpacity: Double {
-        model.phase == .hidden ? 0 : 1
-    }
-
-    private var phaseOffset: CGFloat {
-        guard !reduceMotion else { return 0 }
-        switch model.phase {
-        case .visible: return 0
-        case .exiting, .hidden: return 6
-        }
-    }
-
-    private var phaseScale: CGFloat {
-        guard !reduceMotion else { return 1 }
-        switch model.phase {
-        case .visible: return 1
-        case .exiting: return 0.98
-        case .hidden: return 0.96
-        }
-    }
-
-    /// 文字过渡：旧文字上移 4pt 淡出，新文字从下方 4pt 淡入（quick 时长）。
-    private var labelTransition: AnyTransition {
-        .asymmetric(
-            insertion: .offset(y: 4).combined(with: .opacity),
-            removal: .offset(y: -4).combined(with: .opacity)
-        )
-    }
-
-    /// 已输入只说"写好了"，不再把刚上屏的文字复述一遍。
-    private var detail: String {
-        if state == .inserted || model.message.isEmpty { return state.hint }
-        return model.message
     }
 }
 
@@ -435,146 +312,4 @@ enum FloatUpdateCounter {
     @MainActor
     static func probe() -> some View { EmptyView() }
     #endif
-}
-
-// MARK: - 表面
-//
-// 浮条盖在任意应用之上：深色终端、浅色文档、花哨网页都有。原先的 86% 纯黑条
-// 在深色背景上几乎没有边界。改为系统毛玻璃（跟随浅色/深色外观）+ 发丝描边 +
-// 状态色描边：底色随系统，描边保证在任何背景上都有清楚的轮廓，颜色同时说明状态。
-
-enum FloatSurface {
-    static let barHeight: CGFloat = 44
-    static let cornerRadius: CGFloat = 22
-    /// 模式选单的圆角（打开时从 22 变形到 16）。
-    static let pickerCornerRadius: CGFloat = 16
-    /// 给阴影留的透明边距（面板比可见的条大这么多）。
-    static let shadowInset: CGFloat = 12
-}
-
-/// 窗口背后的实时模糊。SwiftUI 的 Material 在透明无边框面板里拿不到桌面内容，
-/// 必须用 `.behindWindow` 的 NSVisualEffectView。
-private struct BehindWindowBlur: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSVisualEffectView {
-        let view = NSVisualEffectView()
-        view.material = .popover
-        view.blendingMode = .behindWindow
-        view.state = .active
-        return view
-    }
-
-    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
-}
-
-private struct FloatSurfaceModifier: ViewModifier {
-    let tint: Color?
-    let cornerRadius: CGFloat
-    @Environment(\.colorScheme) private var scheme
-
-    func body(content: Content) -> some View {
-        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-        content
-            .background(BehindWindowBlur().clipShape(shape))
-            .overlay(
-                // 外圈：状态色（无状态时用中性发丝线），保证轮廓。
-                shape.strokeBorder((tint ?? Color.primary).opacity(tint == nil ? 0.14 : 0.55), lineWidth: 1)
-            )
-            .overlay(
-                // 内圈高光：让玻璃边缘在深色背景上也立得住。
-                shape.inset(by: 1)
-                    .strokeBorder(Color.white.opacity(scheme == .dark ? 0.08 : 0.5), lineWidth: 0.5)
-            )
-            .shadow(color: .black.opacity(scheme == .dark ? 0.45 : 0.18), radius: 10, y: 4)
-    }
-}
-
-extension View {
-    func floatSurface(tint: Color?, cornerRadius: CGFloat) -> some View {
-        modifier(FloatSurfaceModifier(tint: tint, cornerRadius: cornerRadius))
-    }
-}
-
-/// 改写模式选单：↑↓ 移动、确认选定、返回关闭。遥控器专属界面，浮条不抢焦点，
-/// 所以这里没有任何可点元素——导航全部由按键路由完成。
-///
-/// 动效（epic #1 子任务 F）：打开时条目按 20 ms 交错淡入上移（首条延迟 60 ms）；
-/// 高亮块是一块 `matchedGeometryEffect` 的填充，在行之间滑动而不是瞬跳；
-/// 确认时高亮行闪亮一次（160 ms）。减弱动态效果时全部瞬切。
-private struct ModePickerView: View {
-    let picker: Coordinator.ModePickerState
-    let width: CGFloat
-    /// 打开代数：每次打开 +1，用来重置交错入场（`onAppear` 不换 id 不会重播）。
-    let generation: Int
-    /// 确认时闪亮的条目 id（消费一次，下一次打开时自动失效）。
-    let confirmingItemID: String?
-    let reduceMotion: Bool
-
-    /// 高亮块的 matchedGeometry 命名空间。
-    @Namespace private var highlightSpace
-    /// 条目入场进度：0 = 未入场（透明 + 下移），1 = 到位。
-    @State private var appeared = false
-    /// 确认闪亮进度（0…1，160 ms）。
-    @State private var flash: Double = 0
-
-    /// 选单内容高度：条目 34 + 页脚 28 + 上下内边距 8。
-    static func height(itemCount: Int) -> CGFloat {
-        CGFloat(itemCount) * 34 + 28 + 16
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(picker.items.enumerated()), id: \.element.id) { index, item in
-                let isHighlight = index == picker.highlight
-                HStack(spacing: 8) {
-                    Image(systemName: isHighlight ? "checkmark.circle.fill" : "circle")
-                        .foregroundStyle(isHighlight ? Color.brandOnAccentFill : Color.secondary)
-                        .font(.system(size: 13))
-                    Text(item.name)
-                        .font(.system(size: 14, weight: isHighlight ? .semibold : .regular))
-                        .foregroundStyle(isHighlight ? Color.brandOnAccentFill : Color.primary)
-                    Spacer()
-                }
-                .padding(.horizontal, 12)
-                .frame(height: 34)
-                .background {
-                    if isHighlight {
-                        RoundedRectangle(cornerRadius: 9, style: .continuous)
-                            .fill(Color.brandAccentFill)
-                            // 一块高亮块在行之间滑动（减弱动态效果时由系统转为瞬切）。
-                            .matchedGeometryEffect(id: "highlight", in: highlightSpace)
-                            .brightness(flash * 0.35)
-                    }
-                }
-                .padding(.horizontal, 6)
-                .opacity(appeared ? 1 : 0)
-                .offset(y: appeared || reduceMotion ? 0 : 4)
-                .animation(reduceMotion ? nil : Motion.quick.delay(0.06 + Double(index) * 0.02),
-                           value: appeared)
-            }
-            Text("↑↓ 选择 · 确认键切换 · 返回键关闭")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 18)
-                .frame(height: 28)
-                .opacity(appeared ? 1 : 0)
-        }
-        .padding(.vertical, 8)
-        .frame(width: width)
-        .animation(reduceMotion ? nil : Motion.standard, value: picker.highlight)
-        .id(generation)
-        .onAppear {
-            if reduceMotion {
-                appeared = true
-            } else {
-                appeared = false
-                withAnimation { appeared = true }
-            }
-        }
-        .onChange(of: confirmingItemID) { _, id in
-            guard id != nil, !reduceMotion else { return }
-            flash = 0
-            withAnimation(Motion.instant) { flash = 1 }
-            withAnimation(Motion.instant.delay(MotionTiming.pickerConfirmFlash)) { flash = 0 }
-        }
-    }
 }

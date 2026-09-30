@@ -164,61 +164,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case "light": themeStore.set(appearance: .light, persist: false)
         default: break
         }
-        // MIVIBE_FLOAT_DEMO=picker：复现「提示收起 → 打开选单 → 返回关闭 → 再次打开」，走查关闭时不闪旧横条、再开时可见。
-        if ProcessInfo.processInfo.environment["MIVIBE_FLOAT_DEMO"] == "picker" {
-            runPickerDemo(panel)
-            return
+        // MIVIBE_FLOAT_DEMO=picker：复现「提示收起 → 打开选单 → 返回关闭 → 再次打开」，走查关闭时不闪旧浮条、再开时可见。
+        // MIVIBE_FLOAT_DEMO=stack：两条录音交错、一条先收起、提示条、第三条被拒绝晃动。
+        switch ProcessInfo.processInfo.environment["MIVIBE_FLOAT_DEMO"] {
+        case "picker": FloatDemo.runPicker(panel)
+        case "stack": FloatDemo.runStack(panel)
+        default: FloatDemo.runCarousel(panel)
         }
-        let steps: [(FloatState, String)] = [
-            (.listening, ""), (.transcribing, ""), (.polishing, ""),
-            (.inserted, ""), (.notice, "没有听到内容，已忽略"),
-            (.attention, "焦点已改变，请选好输入框后点「输入到这里」"),
-        ]
-        let interval = Double(ProcessInfo.processInfo.environment["MIVIBE_FLOAT_DEMO_INTERVAL"] ?? "") ?? 2.5
-        for (index, step) in steps.enumerated() {
-            DispatchQueue.main.asyncAfter(deadline: .now() + interval * Double(index)) {
-                MainActor.assumeIsolated {
-                    panel.update(state: step.0, message: step.1)
-                    if step.0 == .listening { panel.setLevel(0.55) }
-                }
-            }
-        }
-    }
-
-    @MainActor
-    private func runPickerDemo(_ panel: FloatPanelController) {
-        let items = ["原文直出", "转录整理", "正式书面", "简洁"].enumerated().map {
-            Coordinator.ModePickerState.Item(id: "m\($0.offset)", name: $0.element)
-        }
-        // 与真机同构：协调器每次变化（含遥控器按下 / 抬起）都先推状态、再推选单。
-        let message = "已切换到：转录整理"
-        var state: FloatState? = .notice
-        var picker: Coordinator.ModePickerState?
-        let refresh = {
-            panel.update(state: state, message: message)
-            panel.update(picker: picker)
-        }
-        // 相对间隔逐步排程：长延迟的 asyncAfter 会被系统合并定时器推迟，
-        // 按键按下 / 抬起之间 0.1 s 的真实节奏只能这样还原。
-        let script: [(Double, () -> Void)] = [
-            (0.0, { refresh(); state = nil }),
-            (4.0, { picker = .init(items: items, highlight: 1); refresh() }),  // 菜单键按下
-            (0.1, { picker = nil; refresh() }),                                // 几乎同时按下返回键
-            (0.05, { refresh() }),                                             // 两键抬起（真机回归触发点）
-            (0.05, { refresh() }),
-            (3.0, { picker = .init(items: items, highlight: 0); refresh() }),  // 再按菜单键：必须可见
-            (0.1, { refresh() }),
-            (3.0, { picker = nil; refresh() }),
-            (0.1, { refresh() }),
-        ]
-        func run(_ index: Int) {
-            guard index < script.count else { return }
-            DispatchQueue.main.asyncAfter(deadline: .now() + script[index].0) {
-                MainActor.assumeIsolated { script[index].1() }
-                run(index + 1)
-            }
-        }
-        run(0)
     }
 
     @MainActor private var demoKeyHint: KeyHintPanelController?
@@ -320,16 +272,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         coordinator.start()
 
         // 事件驱动，不轮询。`objectWillChange` 在属性写入**之前**触发，所以推到
-        // 下一个 run loop 回合再读：同一回合里连续改的 float 与 lastMessage 会
+        // 下一个 run loop 回合再读：同一回合里连续改的队列与浮条列表会
         // 合并成一次刷新，也就读不到中间态。
         cancellable = coordinator.objectWillChange
             .receive(on: RunLoop.main)
             .sink { [weak self, weak coordinator, weak menuBarDriver] _ in
                 guard let self, let coordinator else { return }
-                self.panel?.update(state: coordinator.float, message: coordinator.lastMessage)
+                self.panel?.update(entries: coordinator.floats)
+                self.panel?.update(shakeCount: coordinator.floatShakeCount)
                 self.panel?.update(picker: coordinator.picker)
                 // 离开听音立即回到静态标记（AC8：1 帧内归位）。
-                if coordinator.float != .listening { menuBarDriver?.rest() }
+                if !coordinator.isListening { menuBarDriver?.rest() }
             }
     }
 
