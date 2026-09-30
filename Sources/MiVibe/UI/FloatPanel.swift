@@ -129,6 +129,11 @@ final class FloatPanelController {
             if model.picker == nil { hidePanel() }
             return
         }
+        // 选单正在淡出时来了新状态：放弃淡出，直接换成横条显示新状态。
+        if pickerPendingClear {
+            pickerPendingClear = false
+            model.picker = nil
+        }
 
         showPanel()
 
@@ -151,14 +156,26 @@ final class FloatPanelController {
     /// 选单的 6 秒无操作关闭由那边统一管理）。
     func update(picker: Coordinator.ModePickerState?) {
         let wasOpen = model.picker != nil
-        model.picker = picker
-        if picker != nil {
+        if let picker {
+            pickerPendingClear = false
+            model.picker = picker
             if !wasOpen { model.pickerGeneration += 1 }
             showPanel()
+        } else if !wasOpen || pickerPendingClear {
+            return
         } else if model.state == nil || dismissed {
+            // 返回键 / 6 秒无操作关闭：没有要接着显示的状态时，选单**原样淡出**。
+            // 先清 picker 会让退场那 0.24 s 里露出上一次的状态横条（真机反馈）。
+            pickerPendingClear = true
             hidePanel()
+        } else {
+            // 确认切换：选单收回成横条，横条显示新的提示。
+            model.picker = nil
         }
     }
+
+    /// 选单正在淡出、等 orderOut 后再清空（见 `update(picker:)`）。
+    private var pickerPendingClear = false
 
     /// 确认键按下：先让高亮行闪亮一下（由选单视图在移除前消费），再交给
     /// Coordinator 关闭选单。闪亮与关闭之间由 Coordinator 的消息节奏衔接。
@@ -226,6 +243,10 @@ final class FloatPanelController {
                 Task { @MainActor [weak self] in
                     guard let self, self.model.phase == .hidden else { return }
                     self.panel.orderOut(nil)
+                    if self.pickerPendingClear {
+                        self.pickerPendingClear = false
+                        self.model.picker = nil
+                    }
                 }
             }
         }
@@ -241,8 +262,10 @@ final class FloatPanelController {
         autoHideTimer = Timer.scheduledTimer(withTimeInterval: seconds, repeats: false) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                self.hidePanel()
                 self.dismissed = true
+                // 选单开着时不收：上一条提示的计时到点不能把用户正在用的选单关掉。
+                guard self.model.picker == nil else { return }
+                self.hidePanel()
             }
         }
     }

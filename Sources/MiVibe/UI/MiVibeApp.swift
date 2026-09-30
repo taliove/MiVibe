@@ -162,6 +162,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case "light": themeStore.set(appearance: .light, persist: false)
         default: break
         }
+        // MIVIBE_FLOAT_DEMO=picker：复现「提示收起 → 打开选单 → 返回关闭」，走查关闭时不闪旧横条。
+        if ProcessInfo.processInfo.environment["MIVIBE_FLOAT_DEMO"] == "picker" {
+            runPickerDemo(panel)
+            return
+        }
         let steps: [(FloatState, String)] = [
             (.listening, ""), (.transcribing, ""), (.polishing, ""),
             (.inserted, ""), (.notice, "没有听到内容，已忽略"),
@@ -174,6 +179,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     panel.update(state: step.0, message: step.1)
                     if step.0 == .listening { panel.setLevel(0.55) }
                 }
+            }
+        }
+    }
+
+    @MainActor
+    private func runPickerDemo(_ panel: FloatPanelController) {
+        let items = ["原文直出", "转录整理", "正式书面", "简洁"].enumerated().map {
+            Coordinator.ModePickerState.Item(id: "m\($0.offset)", name: $0.element)
+        }
+        let script: [(Double, () -> Void)] = [
+            (0.0, { panel.update(state: .notice, message: "已切换到：转录整理") }),
+            (4.0, { panel.update(picker: .init(items: items, highlight: 1)) }),
+            (6.0, { panel.update(picker: .init(items: items, highlight: 2)) }),
+            (8.0, { panel.update(picker: nil) }),
+        ]
+        for (delay, action) in script {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                MainActor.assumeIsolated { action() }
             }
         }
     }
