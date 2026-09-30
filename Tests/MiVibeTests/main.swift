@@ -18,5 +18,6 @@ PendingStoreTests.run()
 TakeoverFailureTests.run()
 RemoteKeyRemapTests.run()
 ThemeTests.run()
+BrandMarkTests.run()
 
 Harness.finish()
