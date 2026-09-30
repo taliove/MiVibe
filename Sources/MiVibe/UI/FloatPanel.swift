@@ -17,6 +17,9 @@ final class FloatPanelModel: ObservableObject {
     @Published var picker: Coordinator.ModePickerState?
     /// 横条宽度：默认 560，窄屏（含刘海两侧可用区变小）时收紧，不溢出屏幕。
     @Published var barWidth: CGFloat = 560
+    /// 只观察不写入：主题切换时让浮条与选单立刻重绘（主题令牌经 BrandColorCurrent 读取，
+    /// 值总是对的，但视图不观察 ThemeStore 就不会失效重算，见 Brand.swift 头注释）。
+    let themeStore = AppDelegate.shared.themeStore
 }
 
 /// 实时音量电平 0…1（高频，约 66 Hz），只被球观察。
@@ -80,13 +83,6 @@ final class FloatPanelController {
         panel.contentView = NSHostingView(rootView: FloatBarView(model: model, level: level))
         panel.positionBottomCenter()
     }
-
-    #if DEBUG
-    /// 开发走查：强制浅色/深色外观（nil 跟随系统）。
-    func debugForceAppearance(_ name: NSAppearance.Name?) {
-        panel.appearance = name.flatMap(NSAppearance.init(named:))
-    }
-    #endif
 
     /// 推入实时音量 0…1。由音频回调以约 66 Hz 驱动。
     func setLevel(_ value: Double) {
@@ -169,9 +165,18 @@ final class FloatPanelController {
 struct FloatBarView: View {
     @ObservedObject var model: FloatPanelModel
     @ObservedObject var level: AudioLevelModel
+    /// 主题观察：主题切换时浮条与模式选单立刻重绘（值取自 BrandColorCurrent，
+    /// 不观察则颜色对但不重算，见 Brand.swift 头注释）。
+    @ObservedObject private var themeStore: ThemeStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var state: FloatState { model.state ?? .listening }
+
+    init(model: FloatPanelModel, level: AudioLevelModel) {
+        self.model = model
+        self.level = level
+        self._themeStore = ObservedObject(wrappedValue: model.themeStore)
+    }
 
     var body: some View {
         // 面板本身按最大宽度开、完全透明且不接收鼠标；可见的条按内容收缩并居中，
@@ -282,18 +287,18 @@ private struct ModePickerView: View {
             ForEach(Array(picker.items.enumerated()), id: \.element.id) { index, item in
                 HStack(spacing: 8) {
                     Image(systemName: index == picker.highlight ? "checkmark.circle.fill" : "circle")
-                        .foregroundStyle(index == picker.highlight ? Color.white : Color.secondary)
+                        .foregroundStyle(index == picker.highlight ? Color.brandOnAccentFill : Color.secondary)
                         .font(.system(size: 13))
                     Text(item.name)
                         .font(.system(size: 14, weight: index == picker.highlight ? .semibold : .regular))
-                        .foregroundStyle(index == picker.highlight ? Color.white : Color.primary)
+                        .foregroundStyle(index == picker.highlight ? Color.brandOnAccentFill : Color.primary)
                     Spacer()
                 }
                 .padding(.horizontal, 12)
                 .frame(height: 34)
                 .background(
                     RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .fill(index == picker.highlight ? Color.accentColor : .clear)
+                        .fill(index == picker.highlight ? Color.brandAccentFill : .clear)
                 )
                 .padding(.horizontal, 6)
             }
@@ -420,6 +425,9 @@ private struct TranscribingBall: View {
 }
 
 /// 已输入：对勾被"画"出来，画完即静——一次性动作才配得上"结束"。
+///
+/// 对勾色用 `brandOnAccentFill`（浅色白 / 深色墨绿，不随主题变）：深色下成功色是
+/// 亮绿 #3CC97D，白勾对比度只有约 2.1:1，墨绿勾约 8:1（spec C 验收的填充面对比规则）。
 private struct InsertedBall: View {
     let color: Color
     @State private var drawn: CGFloat = 0
@@ -432,7 +440,7 @@ private struct InsertedBall: View {
 
             CheckmarkShape()
                 .trim(from: 0, to: drawn)
-                .stroke(.white, style: StrokeStyle(lineWidth: 2.2, lineCap: .round, lineJoin: .round))
+                .stroke(Color.brandOnAccentFill, style: StrokeStyle(lineWidth: 2.2, lineCap: .round, lineJoin: .round))
                 .frame(width: 12, height: 12)
         }
         .frame(width: 40, height: 40)

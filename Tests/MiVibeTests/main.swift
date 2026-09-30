@@ -19,5 +19,6 @@ TakeoverFailureTests.run()
 RemoteKeyRemapTests.run()
 ThemeTests.run()
 BrandMarkTests.run()
+QueueDotColorTests.run()
 
 Harness.finish()
